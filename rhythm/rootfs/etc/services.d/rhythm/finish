@@ -1,0 +1,5 @@
+#!/usr/bin/with-contenv bash
+# Stop the entire container on an essential process failure. Supervisor owns
+# restart policy; this also gives factory reset a fresh credential lifecycle.
+printf '1' > /run/s6-linux-init-container-results/exitcode
+exec /run/s6/basedir/bin/halt

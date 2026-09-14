@@ -1,0 +1,5 @@
+#!/usr/bin/with-contenv bash
+set -euo pipefail
+# Nginx needs no Supervisor credential. Drop it from the child environment.
+unset SUPERVISOR_TOKEN HASSIO_TOKEN
+exec nginx -g 'daemon off;'

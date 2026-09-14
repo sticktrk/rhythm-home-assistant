@@ -1,0 +1,4 @@
+#!/usr/bin/with-contenv bash
+set -euo pipefail
+export LOG_LEVEL="$(cat /run/rhythm/log-level)"
+exec /usr/local/bin/rhythm-addon
