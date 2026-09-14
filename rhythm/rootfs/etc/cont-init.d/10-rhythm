@@ -1,0 +1,12 @@
+#!/usr/bin/with-contenv bashio
+set -euo pipefail
+umask 077
+[[ -n "${SUPERVISOR_TOKEN:-}" ]] || { echo "Supervisor credentials are required."; exit 1; }
+mkdir -p /data/rhythm /run/rhythm
+chmod 700 /data/rhythm /run/rhythm
+# Generated for this container lifetime; never included in /data or an export.
+od -An -N32 -tx1 /dev/urandom | tr -d ' \n' > /run/rhythm/api-token
+chmod 600 /run/rhythm/api-token
+log_level="$(bashio::config 'log_level')"
+case "$log_level" in error|warn|info|debug) ;; *) log_level=info ;; esac
+printf '%s' "$log_level" > /run/rhythm/log-level
