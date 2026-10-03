@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # Product revision is also recorded in source.lock.json and validated by CI.
 FROM debian:bookworm-slim AS source
-ARG RHYTHM_SOURCE_SHA=1eb418444351d4384480adc793045e6175683aac
+ARG RHYTHM_SOURCE_SHA=14822b1ab9dde52adba0f484b525b577437a2eb5
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && rm -rf /var/lib/apt/lists/*
 RUN mkdir /src && curl -fsSL --retry 3 "https://codeload.github.com/sticktrk/rhythm-os/tar.gz/${RHYTHM_SOURCE_SHA}" | tar xz --strip-components=1 -C /src
 
@@ -44,7 +44,7 @@ RUN case "$TARGETARCH" in \
     curl -fsSL "https://raw.githubusercontent.com/cloudflare/cloudflared/2026.9.3/LICENSE" -o /cloudflared.LICENSE
 
 FROM ghcr.io/home-assistant/base-debian:bookworm@sha256:60cd882d5200157082e568a0b775cca0d9cb5704452ada3cf6f206c4dd6d83c5
-ARG RHYTHM_SOURCE_SHA=1eb418444351d4384480adc793045e6175683aac
+ARG RHYTHM_SOURCE_SHA=14822b1ab9dde52adba0f484b525b577437a2eb5
 LABEL org.opencontainers.image.title="Rhythm for Home Assistant" \
       org.opencontainers.image.source="https://github.com/sticktrk/rhythm-home-assistant" \
       io.rhythm.product.revision="${RHYTHM_SOURCE_SHA}"
