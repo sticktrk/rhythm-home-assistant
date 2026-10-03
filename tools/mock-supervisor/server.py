@@ -6,6 +6,7 @@ import struct
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ADMIN = "a" * 32
+TOKEN = "synthetic-supervisor-token-for-tests"
 ACTIVE = True
 LIGHT = {"entity_id": "light.reviewed_fixture", "state": "on",
          "attributes": {"friendly_name": "Synthetic light", "brightness": 128,
@@ -49,20 +50,31 @@ class Handler(BaseHTTPRequestHandler):
             ACTIVE = False; return self.reply({})
         if self.path == "/fixture/calls":
             return self.reply(CALLS)
+        if self.headers.get("Authorization") != "Bearer " + TOKEN:
+            return self.reply({"error": "Unauthorized"}, 401)
         if self.headers.get("Upgrade", "").lower() == "websocket":
-            return self.websocket()
-        if self.path.endswith("/config"):
+            # Supervisor's WebSocket proxy is NOT under /core/api. Accepting
+            # any upgrade path conceals an installation-breaking URL error.
+            if self.path == "/core/websocket":
+                return self.websocket()
+            return self.reply({"error": "Not found"}, 404)
+        if self.path == "/core/api/config":
             return self.reply({"latitude": 51.5, "longitude": -0.12, "time_zone": "Europe/London"})
-        if self.path.endswith("/states"):
+        if self.path == "/core/api/states":
             return self.reply([LIGHT])
-        if self.path.endswith("/states/" + LIGHT["entity_id"]):
+        if self.path == "/core/api/states/" + LIGHT["entity_id"]:
             return self.reply(LIGHT)
-        return self.reply({"message": "API running."})
+        if self.path in ("/core/api", "/core/api/"):
+            return self.reply({"message": "API running."})
+        return self.reply({"error": "Not found"}, 404)
     def do_POST(self):
         raw = self.rfile.read(int(self.headers.get("Content-Length", 0)))
-        if "/services/" in self.path:
+        if self.headers.get("Authorization") != "Bearer " + TOKEN:
+            return self.reply({"error": "Unauthorized"}, 401)
+        if self.path.startswith("/core/api/services/"):
             CALLS.append({"path": self.path, "body": json.loads(raw) if raw else {}})
-        self.reply([])
+            return self.reply([])
+        self.reply({"error": "Not found"}, 404)
     def send_frame(self, value, opcode=1):
         body = json.dumps(value).encode() if opcode == 1 else value
         header = bytes([128 | opcode])
@@ -91,6 +103,9 @@ class Handler(BaseHTTPRequestHandler):
                 if opcode != 1: continue
                 msg = json.loads(body)
                 if msg["type"] == "auth":
+                    if msg.get("access_token") != TOKEN:
+                        self.send_frame({"type": "auth_invalid", "message": "Invalid access token"})
+                        return
                     self.send_frame({"type": "auth_ok", "ha_version": "2026.9.0"}); continue
                 if msg["type"] == "ping":
                     self.send_frame({"type": "pong", "id": msg.get("id")}); continue
@@ -106,4 +121,5 @@ class Handler(BaseHTTPRequestHandler):
         except (EOFError, ConnectionError):
             pass
 
-ThreadingHTTPServer(("0.0.0.0", 80), Handler).serve_forever()
+if __name__ == "__main__":
+    ThreadingHTTPServer(("0.0.0.0", 80), Handler).serve_forever()

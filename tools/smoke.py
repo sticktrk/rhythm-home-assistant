@@ -98,13 +98,17 @@ print(json.dumps({'status':response.status,'headers':dict(response.headers),'bod
         assert request("/api/session", headers={"X-Remote-User-Id": ""})["status"] == 403
         assert request("/api/session", headers={"X-Remote-User-Id": "b" * 32})["status"] == 403
 
-        def proxy(method, path, body=None, **headers):
+        def proxy(method, path, body=None, expected_status=200, **headers):
             op = {"method": method, "path": path}
             if method != "GET":
                 identity = proxy("GET", "api/state")["body"]["body"]["server_instance_id"]
                 op.update(requestId="ha-review-" + uuid.uuid4().hex, expectedServerInstanceId=identity)
             if body is not None: op["body"] = body
-            return request("/api/local/device-admin/proxy", op, headers)
+            response = request("/api/local/device-admin/proxy", op, headers)
+            assert response["status"] == expected_status, (method, path, response)
+            if expected_status == 200:
+                assert isinstance(response["body"], dict) and {"body", "statusCode"} <= response["body"].keys(), (method, path, response)
+            return response
 
         # Mobile and Ingress credentials are separate. HA identity headers do
         # not authorize the mobile listener, even from the trusted gateway IP.
@@ -113,7 +117,9 @@ print(json.dumps({'status':response.status,'headers':dict(response.headers),'bod
         assert mapped_state()[0] == 401
         assert request("/api/auth/claim", {}, host=mobile_host)["status"] in (401, 403)
         assert request("/api/addon/enrollment", {}, host=mobile_host)["status"] in (401, 403, 404)
-        enrollment = proxy("POST", "api/addon/enrollment", {})["body"]["body"]
+        enrollment_response = proxy("POST", "api/addon/enrollment", {})["body"]
+        assert enrollment_response["statusCode"] == 200, enrollment_response
+        enrollment = enrollment_response["body"]
         assert enrollment["server_instance_id"]
         exchange = {"code": enrollment["code"], "server_instance_id": enrollment["server_instance_id"], "label": "Synthetic phone"}
         issued = request("/api/addon/enrollment/exchange", exchange, host=mobile_host)
@@ -132,7 +138,7 @@ print(json.dumps({'status':response.status,'headers':dict(response.headers),'bod
         assert proxy("GET", "api/addon/lights")["body"]["body"]["entities"] == []
         assert proxy("PUT", "api/hub/credentials", {})["body"]["statusCode"] == 403
         assert proxy("PUT", "api/backup", {})["body"]["statusCode"] == 403
-        assert proxy("PUT", "api/light-breaker", {"enabled": False}, Origin="http://evil.test")["status"] == 403
+        assert proxy("PUT", "api/light-breaker", {"enabled": False}, expected_status=403, Origin="http://evil.test")["status"] == 403
         for _ in range(30):
             selection = proxy("GET", "api/addon/lights")["body"]["body"]
             if selection.get("snapshot_ready"): break
@@ -149,7 +155,7 @@ print(json.dumps({'status':response.status,'headers':dict(response.headers),'bod
         assert proxy("PUT", "api/addon/lights", {"entities": [light["entity_id"]], "expected_entities": [], "expected_snapshot_revision": selection["snapshot_revision"]})["body"]["statusCode"] == 200
         assert proxy("PUT", "api/light-breaker", {"enabled": True})["body"]["statusCode"] == 200
         request("/revoke", host="supervisor:80")
-        assert proxy("PUT", "api/light-breaker", {"enabled": False})["status"] == 403
+        assert proxy("PUT", "api/light-breaker", {"enabled": False}, expected_status=403)["status"] == 403
         request("/activate", host="supervisor:80")
         old_token = docker("exec", addon, "cat", "/run/rhythm/api-token")
         assert TOKEN not in docker("exec", addon, "cat", "/data/rhythm/hub_credentials.json")
