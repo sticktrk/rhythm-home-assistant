@@ -7,6 +7,19 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ADMIN = "a" * 32
 ACTIVE = True
+LIGHT = {"entity_id": "light.reviewed_fixture", "state": "on",
+         "attributes": {"friendly_name": "Synthetic light", "brightness": 128,
+                        "color_temp_kelvin": 3000, "supported_color_modes": ["color_temp"],
+                        "min_color_temp_kelvin": 2200, "max_color_temp_kelvin": 6500},
+         "last_updated": "2026-10-03T12:00:00+00:00"}
+ENTITY = {"id": "fixture-registry-id", "entity_id": LIGHT["entity_id"],
+          "unique_id": "fixture-unique-id", "platform": "fixture",
+          "device_id": "fixture-device", "config_entry_id": "fixture-integration",
+          "area_id": "fixture-area"}
+DEVICE = {"id": "fixture-device", "name": "Synthetic light", "area_id": "fixture-area",
+          "manufacturer": "Fixture", "model": "Light", "identifiers": [["fixture", "fixture-id"]],
+          "connections": []}
+CALLS = []
 
 def read_exact(stream, size):
     data = b""
@@ -34,15 +47,21 @@ class Handler(BaseHTTPRequestHandler):
             ACTIVE = True; return self.reply({})
         if self.path == "/revoke":
             ACTIVE = False; return self.reply({})
+        if self.path == "/fixture/calls":
+            return self.reply(CALLS)
         if self.headers.get("Upgrade", "").lower() == "websocket":
             return self.websocket()
         if self.path.endswith("/config"):
             return self.reply({"latitude": 51.5, "longitude": -0.12, "time_zone": "Europe/London"})
         if self.path.endswith("/states"):
-            return self.reply([])
+            return self.reply([LIGHT])
+        if self.path.endswith("/states/" + LIGHT["entity_id"]):
+            return self.reply(LIGHT)
         return self.reply({"message": "API running."})
     def do_POST(self):
-        self.rfile.read(int(self.headers.get("Content-Length", 0)))
+        raw = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+        if "/services/" in self.path:
+            CALLS.append({"path": self.path, "body": json.loads(raw) if raw else {}})
         self.reply([])
     def send_frame(self, value, opcode=1):
         body = json.dumps(value).encode() if opcode == 1 else value
@@ -73,8 +92,16 @@ class Handler(BaseHTTPRequestHandler):
                 msg = json.loads(body)
                 if msg["type"] == "auth":
                     self.send_frame({"type": "auth_ok", "ha_version": "2026.9.0"}); continue
-                result = [{"id": ADMIN, "name": "Test administrator", "is_active": ACTIVE,
-                           "is_owner": False, "group_ids": ["system-admin"]}] if msg["type"] == "config/auth/list" else []
+                if msg["type"] == "ping":
+                    self.send_frame({"type": "pong", "id": msg.get("id")}); continue
+                result = {
+                    "config/auth/list": [{"id": ADMIN, "name": "Test administrator", "is_active": ACTIVE,
+                                          "is_owner": False, "group_ids": ["system-admin"]}],
+                    "config/area_registry/list": [{"area_id": "fixture-area", "name": "Fixture room"}],
+                    "config/entity_registry/list": [ENTITY],
+                    "config/device_registry/list": [DEVICE],
+                    "get_states": [LIGHT],
+                }.get(msg["type"], [])
                 self.send_frame({"id": msg["id"], "type": "result", "success": True, "result": result})
         except (EOFError, ConnectionError):
             pass

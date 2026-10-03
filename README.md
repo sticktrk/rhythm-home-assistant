@@ -1,6 +1,6 @@
 # Rhythm for Home Assistant
 
-Rhythm's existing **admin API and web UI**, embedded through Home Assistant Ingress with an automatic local HA connection. Flutter stays mobile-only and is not part of this image.
+Rhythm's lighting engine with Home Assistant-owned devices and two separate interfaces: the mobile app connects directly over LAN or the existing Rhythm tunnel, and the existing **admin API and web UI** run through Home Assistant Ingress. Flutter stays mobile-only and is not part of this image.
 
 This repository owns install metadata, packaging and public build checks. Shared Rust, pure Dart and React source remain in [rhythm-os](https://github.com/sticktrk/rhythm-os), pinned by [source.lock.json](source.lock.json). Release publishing is operated separately; public CI cannot publish images.
 
@@ -8,7 +8,7 @@ This repository owns install metadata, packaging and public build checks. Shared
 
 ## Use
 
-See [installation, recovery and migration](rhythm/DOCS.md). Add this repository through the Home Assistant app/add-on store, install and start Rhythm, then open its Web UI as a HA administrator. Select managed lights, review profiles and enable adaptation. No URL, token, external hub or Rhythm cloud login is required.
+See [installation, recovery and migration](rhythm/DOCS.md). Add this repository through the Home Assistant app/add-on store, install and start Rhythm, then open its Web UI as a HA administrator. Select managed lights, review profiles and enable adaptation. The admin interface needs no manually entered HA URL or token. To connect a compatible mobile app, generate an enrollment code in Mobile access and enter the HA host's LAN address and mapped mobile port. Remote access uses the existing Rhythm account and tunnel flow.
 
 This repository has a different Supervisor installation identity from the legacy sticktrk/rhythm-os-addon. Stop the old controller before enabling the new one.
 
@@ -31,10 +31,12 @@ Product SHA updates change both Dockerfile arguments and the source lock togethe
 
 ## Container boundary
 
-Ingress:8099 → Nginx → local admin API:8787 → Rhythm:54448 → Supervisor → HA Core
+Ingress:8099 → Nginx → local admin API:8787 → admin-only Rhythm:54449 → Supervisor → HA Core
 
-Only Nginx listens outside loopback; it accepts Ingress exclusively from Supervisor. The API separately verifies active HA administrator status. Browser assets/responses receive neither service token. State lives in /data/rhythm; the ephemeral token lives in /run/rhythm.
+Mobile LAN/mapped port or outbound tunnel → authenticated Rhythm:54448 → Supervisor → HA Core
 
-No host networking, published ports, privileged devices, host configuration mounts, Docker socket, Supervisor management API or password-validation API is requested.
+Nginx accepts Ingress exclusively from Supervisor; the admin API separately verifies active HA administrator status. The mobile listener always requires a durable phone bearer for control and ignores Ingress identity headers. Single-use enrollment codes can only be created through authorized administration. Browser responses receive neither service token. Persistent state lives in /data/rhythm; the separate ephemeral admin token lives in /run/rhythm.
+
+Only the mobile port is published. No host networking, privileged devices, host configuration mounts, Docker socket, Supervisor management API or password-validation API is requested. A pinned cloudflared binary provides the existing outbound tunnel.
 
 Licensed under Apache-2.0.

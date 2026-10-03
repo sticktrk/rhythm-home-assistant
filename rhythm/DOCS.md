@@ -13,21 +13,21 @@ Start Rhythm and use **Open Web UI** or its sidebar entry from a Home Assistant 
 3. Review rooms, profiles, scenes, modes and inputs.
 4. Enable Rhythm from **Overview**.
 
-New lights are excluded even when added to an existing area. Commands target exact selected entities. Review the selection after entity renames, and deselect an old entity before replacing hardware under the same entity ID. Avoid conflicting lighting automations on selected lights.
+New lights are excluded even when added to an existing area. Commands target exact selected entities. Selection records registry identity independently of routing names. Replacements and unresolved identities require fresh review; stale catalog revisions cannot be saved. Avoid conflicting lighting automations on selected lights.
 
 ## Configuration and operation
 
 The only add-on option is log_level: error, warn, info (default), or debug. No credential belongs in options.
 
-Manage integrations, devices, areas, home location and timezone in Home Assistant. Rhythm imports them on connect and synchronization. Use **Home Assistant → Synchronize now** after changes made while connected. Automatic registry/config event reconciliation beyond existing reconnect behavior is planned.
+Manage integrations, devices, areas, home location and timezone in Home Assistant. Rhythm imports them on connect and synchronization. Use **Home Assistant → Synchronize now** after changes made while connected. Registry/config events invalidate the catalog and trigger a complete refresh. Failed partial refreshes do not authorize new writes.
 
-The UI provides overview, managed selection, rooms/lights, profiles, scenes, modes, inputs, activity, connection status and system controls. It has no staff login/customer directory, external hub picker, pairing, remote tunnel, appliance updater or Flutter assets. The API also rejects those operations.
+The UI provides overview, managed selection, rooms/lights, profiles, scenes, modes, inputs, activity, connection status and system controls. It has no staff login/customer directory, physical pairing, appliance updater or Flutter assets. Phones connect directly to a separate authenticated Rhythm API on mapped container port 54448; the existing Rhythm tunnel connects to that same internal port. The admin upstream stays on loopback port 54449.
 
 Regular or inactive HA users cannot use this interface. Sidebar restriction is supplemented by backend authorization; writes recheck the active administrator role immediately. Read authorization is cached for at most 15 seconds. If identity verification is unavailable, access fails closed.
 
 ## Persistence and recovery
 
-Supervisor owns start, stop, updates and backups. Persistent state lives in /data/rhythm. Supervisor owns /data/options.json. Restart regenerates the internal API token and obtains the current Supervisor credential; the saved HA connection contains only a credential-source marker.
+Supervisor owns start, stop, updates and backups. Persistent state lives in /data/rhythm. Supervisor owns /data/options.json. Restart preserves phone credentials, durable server identity and tunnel settings while regenerating the separate internal API token and obtaining the current Supervisor credential; the saved HA connection contains only a credential-source marker.
 
 Take a Home Assistant cold backup before upgrading. Rollback restores the matching old image and data snapshot together. An image downgrade alone is not a safe schema rollback. The add-on has no runtime updater.
 
@@ -41,7 +41,7 @@ Core outages retain configuration while the runtime retries the connection. The 
 
 The legacy sticktrk/rhythm-os-addon repository has a different Supervisor identity and separate data volume. Adding this repository is not an in-place upgrade.
 
-Back up the old installation, stop its controller and install the new add-on. Recreate settings or transfer compatible portable profiles through a reviewed conversion. Legacy full-device backups are rejected because they may restore external credentials and appliance state. A migration preview/converter is planned. Do not blindly copy the old data directory or enable both controllers on the same lights.
+Back up the old installation, stop its controller and install the new add-on. Recreate settings or transfer compatible portable profiles through a reviewed conversion. Legacy full-device backups are rejected because they may restore external credentials and appliance state. The product provides an offline `ha-migration-preview` example: it creates a reviewed portable-profile conversion and a device-candidate inventory without importing credentials or enabling writers. Follow the product migration contract for invocation and remaining manual mappings. Do not blindly copy the old data directory or enable both controllers on the same lights.
 
 ## Diagnostics and qualification
 
@@ -52,3 +52,21 @@ Download bounded connection status from **System** and inspect Supervisor logs l
 Public tests cover the real image with a simulated Supervisor: startup, nested Ingress HTML, trusted identity, revocation, CSRF, forbidden routes, selection conflicts, persistence and token rotation. Real HAOS semantics, theme alignment, backup/restore, hardware behavior, upgrade/rollback and resource budgets remain release gates. Native checks are required on amd64 and aarch64.
 
 References: [communication](https://developers.home-assistant.io/docs/apps/communication/), [Ingress](https://developers.home-assistant.io/docs/apps/presentation/), [security](https://developers.home-assistant.io/docs/apps/security/), [configuration](https://developers.home-assistant.io/docs/apps/configuration/).
+
+## Connect the mobile app
+
+Open **Connect mobile app** as an HA administrator and generate a connection code.
+In the Rhythm mobile app, add the HA host LAN address and the port in the add-on's
+Network settings (default 54448), then paste the code. A code works once for five
+minutes. Each phone receives a durable token; revoke it in the same admin page.
+The Ingress URL is not the phone's API endpoint. Do not expose the LAN HTTP port
+directly to the internet; configure existing Rhythm Remote Access in the app for
+TLS tunnel access. Changing the mapped host port requires updating the phone's
+LAN endpoint, while the tunnel origin remains localhost:54448.
+
+Container cloudflared is pinned to release 2026.9.3 with architecture-specific
+SHA-256 verification. It needs outbound connectivity, without Bluetooth, USB,
+host D-Bus, host networking or Docker socket access. Full installation recovery
+uses HA cold backups. A replacement-host restore requires stopping/revoking the
+previous connector and reconciling ownership before enabling it; duplicate
+installation prevention is a release qualification gate.

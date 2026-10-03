@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1
 # Product revision is also recorded in source.lock.json and validated by CI.
 FROM debian:bookworm-slim AS source
-ARG RHYTHM_SOURCE_SHA=0ddabe8239e88130727d62d77db8652e24c5ec91
+ARG RHYTHM_SOURCE_SHA=1eb418444351d4384480adc793045e6175683aac
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && rm -rf /var/lib/apt/lists/*
 RUN mkdir /src && curl -fsSL --retry 3 "https://codeload.github.com/sticktrk/rhythm-os/tar.gz/${RHYTHM_SOURCE_SHA}" | tar xz --strip-components=1 -C /src
 
@@ -31,12 +31,26 @@ COPY --from=source /src/sdk /src/sdk
 WORKDIR /src/admin-api
 RUN dart pub get --enforce-lockfile && dart compile exe bin/local_server.dart -o /rhythm-admin-api
 
+FROM debian:bookworm-slim AS tunnel-build
+ARG TARGETARCH
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && rm -rf /var/lib/apt/lists/*
+# Immutable upstream release and independent per-architecture SHA-256 receipts.
+RUN case "$TARGETARCH" in \
+      amd64) checksum=77e26d8d900e0b8469f416239d14b5f296525fdf79fee6f511ef55609e3fbac2 ;; \
+      arm64) checksum=aaeb2d7d0da3614634c7e03ab13487a1522c2e79165ed2929cfe23d5e95b326d ;; \
+      *) exit 1 ;; esac; \
+    curl -fsSL --retry 3 "https://github.com/cloudflare/cloudflared/releases/download/2026.9.3/cloudflared-linux-${TARGETARCH}" -o /cloudflared && \
+    echo "$checksum  /cloudflared" | sha256sum -c - && chmod 755 /cloudflared && \
+    curl -fsSL "https://raw.githubusercontent.com/cloudflare/cloudflared/2026.9.3/LICENSE" -o /cloudflared.LICENSE
+
 FROM ghcr.io/home-assistant/base-debian:bookworm@sha256:60cd882d5200157082e568a0b775cca0d9cb5704452ada3cf6f206c4dd6d83c5
-ARG RHYTHM_SOURCE_SHA=0ddabe8239e88130727d62d77db8652e24c5ec91
+ARG RHYTHM_SOURCE_SHA=1eb418444351d4384480adc793045e6175683aac
 LABEL org.opencontainers.image.title="Rhythm for Home Assistant" \
       org.opencontainers.image.source="https://github.com/sticktrk/rhythm-home-assistant" \
       io.rhythm.product.revision="${RHYTHM_SOURCE_SHA}"
 RUN apt-get update && apt-get install -y --no-install-recommends nginx-light ca-certificates libssl3 libstdc++6 curl && rm -rf /var/lib/apt/lists/* /etc/nginx/sites-enabled/default
+COPY --from=tunnel-build /cloudflared /usr/local/bin/cloudflared
+COPY --from=tunnel-build /cloudflared.LICENSE /usr/share/doc/cloudflared/LICENSE
 COPY --from=rust-build /src/target/release/rhythm-addon /usr/local/bin/rhythm-addon
 COPY --from=api-build /rhythm-admin-api /usr/local/bin/rhythm-admin-api
 COPY --from=ui-build /src/admin-ui/dist-homeassistant/ /opt/rhythm/ui/
