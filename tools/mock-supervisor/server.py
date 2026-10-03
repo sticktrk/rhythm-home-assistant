@@ -3,6 +3,7 @@ import base64
 import hashlib
 import json
 import struct
+import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ADMIN = "a" * 32
@@ -109,6 +110,13 @@ class Handler(BaseHTTPRequestHandler):
                     self.send_frame({"type": "auth_ok", "ha_version": "2026.9.0"}); continue
                 if msg["type"] == "ping":
                     self.send_frame({"type": "pong", "id": msg.get("id")}); continue
+                if msg["type"] == "call_service":
+                    CALLS.append({"path": "/core/api/services/" + msg["domain"] + "/" + msg["service"],
+                                  "body": msg.get("service_data", {}), "target": msg.get("target"),
+                                  "transport": "websocket"})
+                    self.send_frame({"id": msg["id"], "type": "result", "success": True,
+                                     "result": {"context": {"id": uuid.uuid4().hex}, "response": None}})
+                    continue
                 result = {
                     "config/auth/list": [{"id": ADMIN, "name": "Test administrator", "is_active": ACTIVE,
                                           "is_owner": False, "group_ids": ["system-admin"]}],
