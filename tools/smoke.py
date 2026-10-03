@@ -154,6 +154,14 @@ print(json.dumps({'status':response.status,'headers':dict(response.headers),'bod
         assert proxy("PUT", "api/addon/lights", {"entities": [], "expected_entities": ["light.stale"], "expected_snapshot_revision": selection["snapshot_revision"]})["body"]["statusCode"] == 409
         assert proxy("PUT", "api/addon/lights", {"entities": [light["entity_id"]], "expected_entities": [], "expected_snapshot_revision": selection["snapshot_revision"]})["body"]["statusCode"] == 200
         assert proxy("PUT", "api/light-breaker", {"enabled": True})["body"]["statusCode"] == 200
+        nodes = proxy("GET", "api/state")["body"]["body"]["nodes"]
+        room = next(node for node in nodes if node["name"] == "Fixture room" and node["kind"] == "room")
+        action = proxy("PUT", "api/nodes/action", {"node_id": room["id"], "action": "off"})["body"]
+        assert action["statusCode"] == 200, action
+        calls = request("/fixture/calls", host="supervisor:80")["body"]
+        assert any(call["path"] == "/core/api/services/light/turn_off" for call in calls), calls
+        assert all(call.get("transport") == "websocket" for call in calls), calls
+        assert all(call["body"].get("entity_id") in (light["entity_id"], [light["entity_id"]]) for call in calls), calls
         request("/revoke", host="supervisor:80")
         assert proxy("PUT", "api/light-breaker", {"enabled": False}, expected_status=403)["status"] == 403
         request("/activate", host="supervisor:80")
