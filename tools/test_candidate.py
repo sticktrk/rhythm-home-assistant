@@ -248,9 +248,10 @@ class CandidateTests(unittest.TestCase):
         self.assertFalse((self.root / "failed").exists())
 
     def test_private_or_missing_image_cannot_change_catalog(self):
+        self.expected["version"] = "0.2.1-dev.2026100402"
         _, receipt = self.candidate()
         (self.root / "rhythm").mkdir()
-        config = 'name: Rhythm\nversion: "' + receipt["version"] + '"\n'
+        config = 'name: Rhythm\nversion: "0.2.0"\n'
         (self.root / "rhythm/config.yaml").write_text(config)
         with patch("promote.load_lock", return_value={"revision": receipt["source_revision"], "version": receipt["version"]}), \
                 patch("promote.build_inputs_hash", return_value=receipt["build_inputs_sha256"]), \
@@ -270,6 +271,32 @@ class CandidateTests(unittest.TestCase):
             validate_catalog(config, release, candidate)
         with self.assertRaisesRegex(ValueError, "disagree"):
             validate_catalog(config.replace(release["version"], "0.3.0"), release, candidate)
+
+    def test_unpublished_candidate_retains_earlier_development_catalog(self):
+        config = 'version: "0.2.0"\n'
+        candidate = {"version": "0.2.1-dev.2026100402"}
+        validate_catalog(config, None, candidate)
+        with self.assertRaisesRegex(ValueError, "Development catalog"):
+            validate_catalog(config + "image: " + IMAGE + "\n", None, candidate)
+        with self.assertRaisesRegex(ValueError, "Development catalog"):
+            validate_catalog('version: "0.2.2"\n', None, candidate)
+
+    def test_verified_promotion_advances_held_catalog_and_retains_build_provenance(self):
+        self.expected["version"] = "0.2.1-dev.2026100402"
+        _, receipt = self.candidate()
+        (self.root / "rhythm").mkdir()
+        (self.root / "rhythm/config.yaml").write_text('name: Rhythm\nversion: "0.2.0"\n')
+        with patch("promote.load_lock", return_value={"revision": receipt["source_revision"], "version": receipt["version"]}), \
+                patch("promote.build_inputs_hash", return_value=receipt["build_inputs_sha256"]), \
+                patch("promote.verify_registry") as verify:
+            promote(receipt, self.root)
+        verify.assert_called_once_with(receipt)
+        config = (self.root / "rhythm/config.yaml").read_text()
+        saved = json.loads((self.root / "release.json").read_text())
+        self.assertIn('version: "0.2.1-dev.2026100402"\n', config)
+        self.assertIn("image: " + IMAGE + "\n", config)
+        self.assertEqual(saved, receipt)
+        validate_catalog(config, saved, self.expected)
 
     def test_changed_build_command_requires_new_version_but_catalog_metadata_does_not(self):
         _, release = self.candidate()

@@ -72,8 +72,8 @@ def validate_catalog(config, release, candidate):
     current = match[1]
     image = re.search(r"^image:\s*(\S+)\s*$", config, re.M)
     if release is None:
-        if image or current != candidate["version"]:
-            raise ValueError("Development catalog must match the source candidate without an image")
+        if image or version_key(current) > version_key(candidate["version"]):
+            raise ValueError("Development catalog cannot advertise an unpublished image or a version newer than its candidate")
         return
     validate_receipt(release)
     if not image or image[1] != IMAGE or current != release["version"]:

@@ -24,13 +24,16 @@ def main():
     args = parser.parse_args()
     suffix = uuid.uuid4().hex[:8]
     network = "rhythm-test-" + suffix
+    ipv6_prefix = "fdf4:522c:" + suffix[:4] + ":" + suffix[4:]
+    mobile_ipv6 = ipv6_prefix + "::4"
     addon, supervisor, client = [network + "-" + role for role in ("addon", "supervisor", "client")]
     volume = network + "-data"
     created = []
     image = "rhythm-supervisor-fixture:local"
     docker("build", "-q", "-t", image, str(ROOT / "tools/mock-supervisor"))
     # Fail on a subnet collision; never reuse or modify an existing HA network.
-    docker("network", "create", "--subnet", "172.30.32.0/24", network)
+    docker("network", "create", "--subnet", "172.30.32.0/24", "--ipv6",
+           "--subnet", ipv6_prefix + "::/64", network)
     try:
         docker("volume", "create", volume)
         docker("run", "-d", "--name", supervisor, "--network", network, "--ip", "172.30.32.3",
@@ -38,7 +41,7 @@ def main():
         docker("run", "-d", "--name", client, "--network", network, "--ip", "172.30.32.2",
                *(["-p", "127.0.0.1:18099:8080"] if args.inspect else []),
                image, "python", "/gateway.py"); created.append(client)
-        docker("run", "-d", "--name", addon, "--network", network, "--ip", "172.30.32.4",
+        docker("run", "-d", "--name", addon, "--network", network, "--ip", "172.30.32.4", "--ip6", mobile_ipv6,
                "-p", "127.0.0.1::54448", "-e", "SUPERVISOR_TOKEN=" + TOKEN, "-v", volume + ":/data", args.image); created.append(addon)
         def mapped_state(token=None):
             # Docker may allocate a different ephemeral host port after restart.
@@ -58,10 +61,10 @@ def main():
             script = """import json,sys,urllib.request,urllib.error
 args=json.loads(sys.argv[1])
 req=urllib.request.Request(args['url'],headers=args['headers'],data=None if args['body'] is None else json.dumps(args['body']).encode())
-try: response=urllib.request.urlopen(req,timeout=10)
+try: response=urllib.request.build_opener(urllib.request.ProxyHandler({})).open(req,timeout=10)
 except urllib.error.HTTPError as error: response=error
-except urllib.error.URLError:
- print(json.dumps({'status':0,'headers':{},'body':'Service starting'})); sys.exit(0)
+except urllib.error.URLError as error:
+ print(json.dumps({'status':0,'headers':{},'body':'Service unreachable','error':type(error.reason).__name__})); sys.exit(0)
 raw=response.read().decode()
 try: body=json.loads(raw)
 except ValueError: body=raw
@@ -113,7 +116,13 @@ print(json.dumps({'status':response.status,'headers':dict(response.headers),'bod
         # Mobile and Ingress credentials are separate. HA identity headers do
         # not authorize the mobile listener, even from the trusted gateway IP.
         mobile_host = "172.30.32.4:54448"
-        assert request("/api/state", host=mobile_host)["status"] == 401
+        mobile_hosts = [mobile_host, "[" + mobile_ipv6 + "]:54448"]
+        # HA's default bridge is dual-stack: published IPv6 traffic targets
+        # the container's IPv6 address, bypassing an IPv4-only listener.
+        for host in mobile_hosts:
+            for path, expected in (("/health", 200), ("/api/state", 401), ("/api/events", 401)):
+                response = request(path, host=host)
+                assert response["status"] == expected, ("Mobile listener", host, path, response)
         assert mapped_state()[0] == 401
         assert request("/api/auth/claim", {}, host=mobile_host)["status"] in (401, 403)
         assert request("/api/addon/enrollment", {}, host=mobile_host)["status"] in (401, 403, 404)
@@ -122,17 +131,19 @@ print(json.dumps({'status':response.status,'headers':dict(response.headers),'bod
         enrollment = enrollment_response["body"]
         assert enrollment["server_instance_id"]
         exchange = {"code": enrollment["code"], "server_instance_id": enrollment["server_instance_id"], "label": "Synthetic phone"}
-        issued = request("/api/addon/enrollment/exchange", exchange, host=mobile_host)
+        issued = request("/api/addon/enrollment/exchange", exchange, host=mobile_hosts[1])
         assert issued["status"] == 200, issued
         phone_token = issued["body"]["token"]
         phone_id = issued["body"]["token_id"]
         phone_headers = {"Authorization": "Bearer " + phone_token}
-        assert request("/api/state", headers=phone_headers, host=mobile_host)["status"] == 200
+        for host in mobile_hosts:
+            assert request("/api/state", headers=phone_headers, host=host)["status"] == 200, host
         mapped_status, mapped_body = mapped_state(phone_token)
         assert mapped_status == 200 and mapped_body["server_instance_id"] == enrollment["server_instance_id"]
         assert request("/api/addon/enrollment/exchange", exchange, host=mobile_host)["status"] == 401
         assert request("/api/session", headers={**phone_headers, "X-Remote-User-Id": ""})["status"] == 403
         assert request("/api/state", headers=phone_headers, host="172.30.32.4:54449")["status"] == 0
+        assert request("/api/state", headers=phone_headers, host="[" + mobile_ipv6 + "]:54449")["status"] == 0
         assert phone_token not in json.dumps(proxy("GET", "api/addon/mobile-tokens"))
 
         assert proxy("GET", "api/addon/lights")["body"]["body"]["entities"] == []
@@ -179,10 +190,12 @@ print(json.dumps({'status':response.status,'headers':dict(response.headers),'bod
         docker("restart", addon)
         assert wait_ready()["status"]["light_breaker_enabled"], "Restart lost reviewed enablement intent"
         assert old_token != docker("exec", addon, "cat", "/run/rhythm/api-token")
-        assert request("/api/state", headers=phone_headers, host=mobile_host)["status"] == 200
+        for host in mobile_hosts:
+            assert request("/api/state", headers=phone_headers, host=host)["status"] == 200, host
         assert request("/api/state", headers={"Authorization": "Bearer " + old_token}, host=mobile_host)["status"] == 401
         assert proxy("DELETE", "api/addon/mobile-tokens/" + phone_id)["body"]["statusCode"] == 200
-        assert request("/api/state", headers=phone_headers, host=mobile_host)["status"] == 401
+        for host in mobile_hosts:
+            assert request("/api/state", headers=phone_headers, host=host)["status"] == 401, host
         assert mapped_state(phone_token)[0] == 401
         assert json.loads(docker("exec", addon, "cat", "/data/options.json"))["fixture"]
         for _ in range(30):
@@ -204,6 +217,7 @@ print(json.dumps({'status':response.status,'headers':dict(response.headers),'bod
         assert proxy("GET", "api/addon/lights")["body"]["body"]["entities"] == []
         print("PASS: factory reset stops essential services, restarts paused and preserves Supervisor options.")
         print("PASS: mobile enrollment, single use, isolated listeners, restart continuity and revocation.")
+        print("PASS: dual-stack mobile health, authentication, enrolled access and revocation; admin listener remains private.")
         print("PASS: real image, nested Ingress, trusted identity, revocation, CSRF, forbidden routes, selection CAS, persistence and token rotation.")
     except Exception:
         if addon in created:

@@ -2,7 +2,7 @@
 # Product revision is also recorded in source.lock.json and validated by CI.
 ARG TARGETARCH
 FROM debian:bookworm-slim AS source
-ARG RHYTHM_SOURCE_SHA=39283f82e2a5925009115ae36859db28e1c482b8
+ARG RHYTHM_SOURCE_SHA=79c7e16d1c7cac8f31d4c9771e86ff1a78cfa431
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && rm -rf /var/lib/apt/lists/*
 RUN mkdir /src && curl -fsSL --retry 3 "https://codeload.github.com/sticktrk/rhythm-os/tar.gz/${RHYTHM_SOURCE_SHA}" | tar xz --strip-components=1 -C /src
 
@@ -45,7 +45,7 @@ RUN case "$TARGETARCH" in \
     curl -fsSL "https://raw.githubusercontent.com/cloudflare/cloudflared/2026.9.3/LICENSE" -o /cloudflared.LICENSE
 
 FROM ghcr.io/home-assistant/base-debian:bookworm@sha256:60cd882d5200157082e568a0b775cca0d9cb5704452ada3cf6f206c4dd6d83c5 AS runtime
-ARG RHYTHM_SOURCE_SHA=39283f82e2a5925009115ae36859db28e1c482b8
+ARG RHYTHM_SOURCE_SHA=79c7e16d1c7cac8f31d4c9771e86ff1a78cfa431
 ARG BUILD_VERSION=development
 LABEL org.opencontainers.image.title="Rhythm for Home Assistant" \
       org.opencontainers.image.source="https://github.com/sticktrk/rhythm-home-assistant" \
