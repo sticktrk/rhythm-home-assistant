@@ -1,8 +1,10 @@
-# 0.2.1-dev.2026100402 (development candidate)
+# 0.2.1-dev.2026100402 (prebuilt qualification pilot)
 
 Support authenticated mobile access over IPv4 and IPv6 on Home Assistant's dual-stack container network. Extend real-image smoke coverage to IPv6 health, enrollment, bearer access, restart continuity and revocation while keeping the administrator listener private.
 
-Prepare locally built, smoke-tested multi-architecture image artifacts with immutable source, packaging and image receipts. Verify both images are publicly accessible before advertising their version to Home Assistant. Keep the catalog at `0.2.0` until the first image is published and verified, so existing installations are not offered another source-build update. After promotion, retain the last published catalog version while preparing newer local candidates.
+Preserve individual HA light manual pauses and scoped actions when lights share an area.
+
+Install the exact locally built, smoke-tested multi-architecture image. Both architectures are publicly accessible and their digests and provenance have been verified. Updating from `0.2.0` downloads the prebuilt image without compiling on the HA host. Keep the last published catalog version while preparing newer local candidates. Full HAOS, native AMD64 and physical-device qualification remain pending.
 
 # 0.2.0 (experimental; pending qualification)
 

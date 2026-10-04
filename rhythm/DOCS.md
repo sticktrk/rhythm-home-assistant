@@ -4,7 +4,9 @@ This experimental add-on targets Supervisor installations, normally HAOS. Home A
 
 ## Installation and first run
 
-Add https://github.com/sticktrk/rhythm-home-assistant in the HA app/add-on store and install Rhythm after a qualified image has been promoted. Production versions download the prebuilt image for your host architecture; they do not compile software on Home Assistant. Experimental development branches without an `image` entry still build pinned public source and are intended for development only. Build and qualify candidates on a development machine before promoting their image and version to the catalog; see the repository README for the exact-artifact workflow.
+For the current pre-merge qualification pilot, add `https://github.com/sticktrk/rhythm-home-assistant#codex/mobile-ha-platform` in the HA app/add-on store. Keep an existing pilot installation attached to that same repository. The catalog advertises `0.2.1-dev.2026100402` and downloads its published prebuilt image for your host architecture. Both a fresh installation and an update from `0.2.0` use the image without compiling software on Home Assistant. This pilot is still undergoing HAOS qualification.
+
+Build future candidates locally and verify anonymous registry access before advancing the catalog. The repository README describes the exact-artifact workflow; development source builds remain available through `tools/build.py`.
 
 Start Rhythm and use **Open Web UI** or its sidebar entry from a Home Assistant administrator session. The interface uses the existing admin API and web UI; Flutter remains mobile-only. The HA connection is automatic and requires no URL, token, external bridge, Rhythm account or mobile onboarding.
 
