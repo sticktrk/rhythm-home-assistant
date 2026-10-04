@@ -1,3 +1,9 @@
+# 0.2.1-dev.2026100404 (prebuilt qualification pilot)
+
+- Show observed light power, brightness and color temperature separately from requested curve values in the admin interface.
+- Preserve observed power when enabling or pausing Rhythm without sending a light command.
+- Retain locally built, smoke-tested images for both architectures; Home Assistant pulls the prebuilt image.
+
 # 0.2.1-dev.2026100403 (prebuilt qualification pilot)
 
 - Preserve per-light manual overrides with current and legacy HA integration identifiers, including a single selected light in an area.
