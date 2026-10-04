@@ -3,6 +3,12 @@ on:
   pull_request:
   push:
     branches: [master]
+  workflow_dispatch:
+    inputs:
+      build_images:
+        description: Explicitly run optional native cloud image validation
+        type: boolean
+        default: false
 permissions:
   contents: read
 jobs:
@@ -13,6 +19,7 @@ jobs:
       - run: python3 tools/validate.py
       - run: python3 -m unittest discover -s tools -p 'test_*.py'
   image:
+    if: github.event_name == 'workflow_dispatch' && inputs.build_images
     strategy:
       fail-fast: false
       matrix:

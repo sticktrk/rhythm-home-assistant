@@ -98,6 +98,36 @@ def inspect_layout(layout, expected):
     return platforms, descriptors
 
 
+def save_layout(archive_path, layout, version):
+    """Keep Docker's native OCI bytes, including health checks and compression."""
+    with tarfile.open(archive_path) as archive:
+        names = set(archive.getnames())
+        if {"index.json", "oci-layout"} <= names:
+            copied = set()
+            for member in archive:
+                if member.name not in {"index.json", "oci-layout"} and not re.fullmatch(
+                        r"blobs/sha256/[0-9a-f]{64}", member.name):
+                    continue
+                if not member.isfile() or member.name in copied:
+                    raise ValueError("Invalid or duplicate Docker OCI archive member")
+                copied.add(member.name)
+                destination = layout / member.name
+                destination.parent.mkdir(parents=True, exist_ok=True)
+                with archive.extractfile(member) as source, destination.open("wb") as target:
+                    shutil.copyfileobj(source, target)
+            return
+    # Classic Docker stores export a Docker-save archive rather than an OCI
+    # layout. Keep Docker schema 2; default OCI conversion drops Healthcheck.
+    subprocess.run(["skopeo", "copy", "--format", "v2s2", "docker-archive:" + str(archive_path),
+                    "oci:" + str(layout) + ":" + version], check=True)
+
+
+def tested_digest(details, kind):
+    if kind not in {"manifest", "config"}:
+        raise ValueError("Unknown tested image digest kind")
+    return details[kind + "_digest"]
+
+
 def export_image(image, output):
     """The smoke and export use the same immutable Docker image ID."""
     require_clean()
@@ -106,6 +136,12 @@ def export_image(image, output):
     platform = validate_config({"os": info["Os"], "architecture": info["Architecture"],
                                 "config": info["Config"]}, expected)
     image_id = info["Id"]
+    # Containerd-backed Docker reports the manifest as Id; classic Docker
+    # reports its configuration. Never compare these two different identities.
+    descriptor = info.get("Descriptor")
+    digest_kind = "manifest" if descriptor else "config"
+    if descriptor and descriptor.get("digest") != image_id:
+        raise ValueError("Docker image ID and descriptor disagree")
     if output.exists():
         raise ValueError("Export destination already exists")
     output.parent.mkdir(parents=True, exist_ok=True)
@@ -120,15 +156,20 @@ def export_image(image, output):
         raise ValueError("Image smoke test failed; inspect " + str(log_path))
     with tempfile.TemporaryDirectory(dir=output.parent) as temp:
         layout = Path(temp) / "image"
-        subprocess.run(["skopeo", "copy", "docker-daemon:" + image_id,
-                        "oci:" + str(layout) + ":" + expected["version"]], check=True)
+        saved = Path(temp) / "docker-save.tar"
+        subprocess.run(["docker", "image", "save", "--output", str(saved), image_id], check=True)
+        save_layout(saved, layout, expected["version"])
         platforms, _ = inspect_layout(layout, expected)
-        if set(platforms) != {platform} or platforms[platform]["config_digest"] != image_id:
-            raise ValueError("Export changed the tested image configuration")
+        if set(platforms) != {platform} or tested_digest(platforms[platform], digest_kind) != image_id:
+            raise ValueError("Export changed the tested image " + digest_kind)
+        saved.unlink()
         shutil.copyfile(log_path, Path(temp) / "smoke.log")
         check = {"status": "passed", "execution": execution, "evidence": "smoke.log",
-                 "evidence_sha256": file_hash(log_path), "tested_config_digest": image_id}
+                 "evidence_sha256": file_hash(log_path),
+                 "tested_config_digest": platforms[platform]["config_digest"],
+                 "tested_image_id": image_id, "tested_image_digest_kind": digest_kind}
         receipt = expected | {"platforms": platforms, "smoke_tested_image_id": image_id,
+                              "smoke_tested_image_digest_kind": digest_kind,
                               "checks": {platform: check}}
         (Path(temp) / "receipt.json").write_text(json.dumps(receipt, indent=2) + "\n")
         shutil.move(temp, output)
@@ -152,12 +193,16 @@ def assemble(exports, output, expected=None):
             found, entries = inspect_layout(export / "image", expected)
             if len(found) != 1 or found != receipt.get("platforms"):
                 raise ValueError("Export receipt does not match its image")
-            if next(iter(found.values()))["config_digest"] != receipt.get("smoke_tested_image_id"):
+            details = next(iter(found.values()))
+            digest_kind = receipt.get("smoke_tested_image_digest_kind")
+            if tested_digest(details, digest_kind) != receipt.get("smoke_tested_image_id"):
                 raise ValueError("Export is not the smoke-tested image")
             platform = next(iter(found))
             check = receipt.get("checks", {}).get(platform, {})
             if (check.get("status") != "passed" or check.get("execution") not in {"native", "emulated"}
                     or check.get("tested_config_digest") != found[platform]["config_digest"]
+                    or check.get("tested_image_id") != receipt["smoke_tested_image_id"]
+                    or check.get("tested_image_digest_kind") != digest_kind
                     or check.get("evidence") != "smoke.log"
                     or file_hash(export / "smoke.log") != check.get("evidence_sha256")):
                 raise ValueError("Export smoke evidence does not match the tested image")

@@ -8,7 +8,7 @@ import tempfile
 from pathlib import Path
 
 from build import ROOT, VERSION_RE, build_inputs_hash, load_lock
-from candidate import IMAGE, PLATFORMS, DIGEST_RE, digest, inspect_layout
+from candidate import IMAGE, PLATFORMS, DIGEST_RE, digest, inspect_layout, tested_digest
 
 
 def version_key(version):
@@ -38,7 +38,8 @@ def validate_receipt(receipt):
             raise ValueError("Invalid platform digest")
         check = receipt.get("checks", {}).get(platform, {})
         if (check.get("status") != "passed" or check.get("execution") not in {"native", "emulated"}
-                or check.get("tested_config_digest") != value["config_digest"]):
+                or check.get("tested_config_digest") != value["config_digest"]
+                or check.get("tested_image_id") != tested_digest(value, check.get("tested_image_digest_kind"))):
             raise ValueError("Release must contain matching smoke evidence")
 
 

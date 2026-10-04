@@ -1,3 +1,4 @@
+import io
 import json
 from pathlib import Path
 import shutil
@@ -9,8 +10,8 @@ from unittest.mock import patch
 
 from build import build_inputs_hash
 from candidate import (IMAGE, assemble, digest, export_image, file_hash,
-                       inspect_layout, json_bytes)
-from promote import promote, validate_catalog, verify_registry, version_key
+                       inspect_layout, json_bytes, save_layout)
+from promote import promote, validate_catalog, validate_receipt, verify_registry, version_key
 
 
 class CandidateTests(unittest.TestCase):
@@ -35,7 +36,8 @@ class CandidateTests(unittest.TestCase):
             (blobs / value_digest.split(":")[1]).write_bytes(raw)
             return {"mediaType": media, "digest": value_digest, "size": len(raw)}
 
-        config = blob({"os": "linux", "architecture": arch, "config": {"Labels": {
+        config = blob({"os": "linux", "architecture": arch, "config": {
+            "Healthcheck": {"Test": ["CMD", "curl", "http://127.0.0.1:8787/health"]}, "Labels": {
             "io.rhythm.product.revision": expected["source_revision"],
             "io.rhythm.packaging.revision": expected["addon_revision"],
             "io.rhythm.build.inputs": expected["build_inputs_sha256"],
@@ -51,10 +53,12 @@ class CandidateTests(unittest.TestCase):
         platform = "linux/" + arch
         receipt = expected | {"platforms": {platform: {"manifest_digest": manifest["digest"],
                                                      "config_digest": config["digest"]}},
-                              "smoke_tested_image_id": config["digest"], "checks": {platform: {
+                              "smoke_tested_image_id": config["digest"],
+                              "smoke_tested_image_digest_kind": "config", "checks": {platform: {
                                   "status": "passed", "execution": "native", "evidence": "smoke.log",
                                   "evidence_sha256": file_hash(export / "smoke.log"),
-                                  "tested_config_digest": config["digest"]}}}
+                                  "tested_config_digest": config["digest"], "tested_image_id": config["digest"],
+                                  "tested_image_digest_kind": "config"}}}
         (export / "receipt.json").write_text(json.dumps(receipt))
         return export, config, layer
 
@@ -108,18 +112,38 @@ class CandidateTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "smoke evidence"):
             assemble([amd, arm], self.root / "candidate.tar", self.expected)
 
-    def test_export_smokes_and_copies_immutable_id(self):
+    def test_export_identity_cannot_substitute_config_for_manifest(self):
+        amd, _, _ = self.fixture("amd64")
+        arm, _, _ = self.fixture("arm64")
+        receipt_path = arm / "receipt.json"
+        receipt = json.loads(receipt_path.read_text())
+        receipt["smoke_tested_image_digest_kind"] = "manifest"
+        receipt["checks"]["linux/arm64"]["tested_image_digest_kind"] = "manifest"
+        receipt_path.write_text(json.dumps(receipt))
+        with self.assertRaisesRegex(ValueError, "not the smoke-tested image"):
+            assemble([amd, arm], self.root / "candidate.tar", self.expected)
+
+    def test_promotion_rejects_wrong_tested_digest_kind(self):
+        _, receipt = self.candidate()
+        receipt["checks"]["linux/arm64"]["tested_image_digest_kind"] = "manifest"
+        with self.assertRaisesRegex(ValueError, "matching smoke evidence"):
+            validate_receipt(receipt)
+
+    def test_export_preserves_containerd_manifest_id_config_and_healthcheck(self):
         fixture, config, _ = self.fixture("arm64")
         image_config = json.loads((fixture / "image/blobs/sha256" / config["digest"].split(":")[1]).read_text())
+        manifest = json.loads((fixture / "image/index.json").read_text())["manifests"][0]
         info = [{"Os": "linux", "Architecture": "arm64", "Config": image_config["config"],
-                 "Id": config["digest"]}]
+                 "Id": manifest["digest"], "Descriptor": manifest}]
         calls = []
 
         def run(command, **kwargs):
             calls.append(command)
-            if command[0] == "skopeo":
-                destination = Path(command[-1].split(":")[1])
-                shutil.copytree(fixture / "image", destination)
+            if command[0] == "docker":
+                with tarfile.open(command[4], "w") as archive:
+                    for path in (fixture / "image").rglob("*"):
+                        if path.is_file():
+                            archive.add(path, arcname=str(path.relative_to(fixture / "image")))
             else:
                 kwargs["stdout"].write("Smoke passed\n")
             return subprocess.CompletedProcess(command, 0)
@@ -128,10 +152,61 @@ class CandidateTests(unittest.TestCase):
                 patch("candidate.subprocess.check_output", side_effect=[json.dumps(info).encode(), "aarch64\n"]), \
                 patch("candidate.subprocess.run", side_effect=run):
             export_image("mutable:test", self.root / "export")
-        self.assertEqual(calls[0][-1], config["digest"])
-        self.assertIn("docker-daemon:" + config["digest"], calls[1])
+        self.assertEqual(calls[0][-1], manifest["digest"])
+        self.assertEqual(calls[1][:4], ["docker", "image", "save", "--output"])
+        self.assertEqual(calls[1][-1], manifest["digest"])
         receipt = json.loads((self.root / "export/receipt.json").read_text())
-        self.assertEqual(receipt["checks"]["linux/arm64"]["execution"], "native")
+        check = receipt["checks"]["linux/arm64"]
+        self.assertEqual(check["execution"], "native")
+        self.assertEqual(check["tested_image_id"], manifest["digest"])
+        self.assertEqual(check["tested_config_digest"], config["digest"])
+        self.assertEqual(check["tested_image_digest_kind"], "manifest")
+        saved_config = self.root / "export/image/blobs/sha256" / config["digest"].split(":")[1]
+        self.assertEqual(json.loads(saved_config.read_text())["config"]["Healthcheck"],
+                         image_config["config"]["Healthcheck"])
+
+    def test_classic_save_uses_schema2_and_keeps_configuration_id(self):
+        fixture, config, _ = self.fixture("arm64")
+        image_config = json.loads((fixture / "image/blobs/sha256" / config["digest"].split(":")[1]).read_text())
+        info = [{"Os": "linux", "Architecture": "arm64", "Config": image_config["config"],
+                 "Id": config["digest"]}]
+        commands = []
+
+        def run(command, **kwargs):
+            commands.append(command)
+            if command[0] == "docker":
+                with tarfile.open(command[4], "w") as archive:
+                    member = tarfile.TarInfo("manifest.json")
+                    member.size = 2
+                    archive.addfile(member, io.BytesIO(b"[]"))
+            elif command[0] == "skopeo":
+                self.assertEqual(command[:4], ["skopeo", "copy", "--format", "v2s2"])
+                shutil.copytree(fixture / "image", Path(command[-1].split(":")[1]))
+            else:
+                kwargs["stdout"].write("Smoke passed\n")
+            return subprocess.CompletedProcess(command, 0)
+
+        with patch("candidate.require_clean"), patch("candidate.identity", return_value=self.expected), \
+                patch("candidate.subprocess.check_output", side_effect=[json.dumps(info).encode(), "aarch64\n"]), \
+                patch("candidate.subprocess.run", side_effect=run):
+            export_image("mutable:test", self.root / "classic")
+        receipt = json.loads((self.root / "classic/receipt.json").read_text())
+        self.assertEqual(receipt["checks"]["linux/arm64"]["tested_image_id"], config["digest"])
+        self.assertEqual(receipt["checks"]["linux/arm64"]["tested_image_digest_kind"], "config")
+
+    def test_native_save_copies_compressed_layer_bytes_without_conversion(self):
+        archive_path = self.root / "compressed.tar"
+        raw = b"\x28\xb5\x2f\xfdzstd fixture bytes"
+        name = "blobs/sha256/" + digest(raw).split(":")[1]
+        with tarfile.open(archive_path, "w") as archive:
+            for filename, data in {"oci-layout": b"{}", "index.json": b"{}", name: raw}.items():
+                member = tarfile.TarInfo(filename)
+                member.size = len(data)
+                archive.addfile(member, io.BytesIO(data))
+        with patch("candidate.subprocess.run") as convert:
+            save_layout(archive_path, self.root / "native", self.expected["version"])
+        convert.assert_not_called()
+        self.assertEqual((self.root / "native" / name).read_bytes(), raw)
 
     def test_anonymous_registry_requires_manifest_and_every_platform(self):
         output, receipt = self.candidate()
