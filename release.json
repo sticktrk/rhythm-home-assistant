@@ -1,0 +1,40 @@
+{
+  "schema_version": 1,
+  "image": "ghcr.io/sticktrk/rhythm-home-assistant",
+  "source_revision": "e3bf577c2c2c98d14275a29eb7f9442574f4fefd",
+  "addon_revision": "08202b799333548e869dbf4c7f9a7568d56c48db",
+  "version": "0.2.1-dev.2026100404",
+  "build_inputs_sha256": "ebdb9a30b3a85d6bfab6d5a99b4e25225c51a5e66c97f0c4bd25db1a158516f4",
+  "artifact_sha256": "dbb7d1a0fc9a06fb3128747964dd5d58a33f1cae87287976e6a65b902f2c000a",
+  "manifest_digest": "sha256:07c215d20911a567759f21c930712fc14c6a29d5aa2d9f6f80109c8ccde0c940",
+  "platforms": {
+    "linux/arm64": {
+      "manifest_digest": "sha256:db179ef766ffde64dc0cfd74e03744ff2c785dc57348b919c4c1f69b2f4a1f4b",
+      "config_digest": "sha256:3b7e7506677bdf3b1a66c19ac6e5c86a77931d52fc026ccb7244de4a2ab743d9"
+    },
+    "linux/amd64": {
+      "manifest_digest": "sha256:55f1373ebbda82f2ab91a4ef9581f27a432ea10da5be03b27ab1f9fff95799c6",
+      "config_digest": "sha256:5ccea85e3d2295ef8fd2678b64f491ce1eded338a379655efdb69dd0278a4ff6"
+    }
+  },
+  "checks": {
+    "linux/arm64": {
+      "status": "passed",
+      "execution": "native",
+      "evidence": "candidate.oci.arm64.smoke.log",
+      "evidence_sha256": "6dc70936da6c066b37c97cec91c71f714538a44e11e8183898e27afeea0aed1b",
+      "tested_config_digest": "sha256:3b7e7506677bdf3b1a66c19ac6e5c86a77931d52fc026ccb7244de4a2ab743d9",
+      "tested_image_id": "sha256:db179ef766ffde64dc0cfd74e03744ff2c785dc57348b919c4c1f69b2f4a1f4b",
+      "tested_image_digest_kind": "manifest"
+    },
+    "linux/amd64": {
+      "status": "passed",
+      "execution": "emulated",
+      "evidence": "candidate.oci.amd64.smoke.log",
+      "evidence_sha256": "7af5d94b9b2355fddf1a4f52a6ef416b137a176b979239c29205dfbf3af9eb2f",
+      "tested_config_digest": "sha256:5ccea85e3d2295ef8fd2678b64f491ce1eded338a379655efdb69dd0278a4ff6",
+      "tested_image_id": "sha256:55f1373ebbda82f2ab91a4ef9581f27a432ea10da5be03b27ab1f9fff95799c6",
+      "tested_image_digest_kind": "manifest"
+    }
+  }
+}

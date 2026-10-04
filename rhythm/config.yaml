@@ -1,7 +1,7 @@
 name: Rhythm
-version: "0.1.0"
+version: "0.2.1-dev.2026100404"
 slug: rhythm
-description: Adaptive lighting with a local admin web interface
+description: Adaptive lighting with mobile control and Home Assistant administration
 url: https://github.com/sticktrk/rhythm-home-assistant
 arch:
   - aarch64
@@ -18,9 +18,14 @@ ingress_port: 8099
 panel_icon: mdi:lightbulb-auto
 panel_title: Rhythm
 panel_admin: true
+ports:
+  54448/tcp: 54448
+ports_description:
+  54448/tcp: Authenticated Rhythm mobile API (LAN and event stream)
 backup: cold
 timeout: 30
 options:
   log_level: info
 schema:
   log_level: list(error|warn|info|debug)
+image: ghcr.io/sticktrk/rhythm-home-assistant

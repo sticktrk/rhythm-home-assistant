@@ -1,6 +1,6 @@
 import argparse
 import unittest
-from build import command, load_lock
+from build import candidate_identity, command, load_lock
 
 class BuildTests(unittest.TestCase):
     def args(self, **overrides):
@@ -11,6 +11,13 @@ class BuildTests(unittest.TestCase):
         cmd = command(self.args())
         self.assertIn("--load", cmd)
         self.assertNotIn("--push", cmd)
+        identity = candidate_identity()
+        self.assertIn("io.rhythm.packaging.revision=" + identity["addon_revision"], cmd)
+        self.assertIn("io.rhythm.build.inputs=" + identity["build_inputs_sha256"], cmd)
+        self.assertIn("BUILD_VERSION=" + identity["version"], cmd)
+        self.assertIn("RHYTHM_SOURCE_SHA=" + identity["source_revision"], cmd)
+        self.assertIn("RHYTHM_PACKAGING_REVISION=" + identity["addon_revision"], cmd)
+        self.assertIn("RHYTHM_BUILD_INPUTS_SHA256=" + identity["build_inputs_sha256"], cmd)
     def test_multiarch_requires_archive(self):
         args = self.args(); args.platform = "linux/amd64,linux/arm64"
         with self.assertRaises(ValueError): command(args)

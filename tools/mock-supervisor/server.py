@@ -3,10 +3,25 @@ import base64
 import hashlib
 import json
 import struct
+import uuid
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ADMIN = "a" * 32
+TOKEN = "synthetic-supervisor-token-for-tests"
 ACTIVE = True
+LIGHT = {"entity_id": "light.reviewed_fixture", "state": "on",
+         "attributes": {"friendly_name": "Synthetic light", "brightness": 128,
+                        "color_temp_kelvin": 3000, "supported_color_modes": ["color_temp"],
+                        "min_color_temp_kelvin": 2200, "max_color_temp_kelvin": 6500},
+         "last_updated": "2026-10-03T12:00:00+00:00"}
+ENTITY = {"id": "fixture-registry-id", "entity_id": LIGHT["entity_id"],
+          "unique_id": "fixture-unique-id", "platform": "fixture",
+          "device_id": "fixture-device", "config_entry_id": "fixture-integration",
+          "area_id": "fixture-area"}
+DEVICE = {"id": "fixture-device", "name": "Synthetic light", "area_id": "fixture-area",
+          "manufacturer": "Fixture", "model": "Light", "identifiers": [["fixture", "fixture-id"]],
+          "connections": []}
+CALLS = []
 
 def read_exact(stream, size):
     data = b""
@@ -34,16 +49,35 @@ class Handler(BaseHTTPRequestHandler):
             ACTIVE = True; return self.reply({})
         if self.path == "/revoke":
             ACTIVE = False; return self.reply({})
+        if self.path == "/fixture/calls":
+            return self.reply(CALLS)
         if self.headers.get("Upgrade", "").lower() == "websocket":
-            return self.websocket()
-        if self.path.endswith("/config"):
+            # Supervisor's WebSocket proxy is NOT under /core/api. Accepting
+            # any upgrade path conceals an installation-breaking URL error.
+            # It authenticates the first WS frame, not the HTTP upgrade header:
+            # home-assistant/supervisor supervisor/api/proxy.py websocket().
+            if self.path == "/core/websocket":
+                return self.websocket()
+            return self.reply({"error": "Not found"}, 404)
+        if self.headers.get("Authorization") != "Bearer " + TOKEN:
+            return self.reply({"error": "Unauthorized"}, 401)
+        if self.path == "/core/api/config":
             return self.reply({"latitude": 51.5, "longitude": -0.12, "time_zone": "Europe/London"})
-        if self.path.endswith("/states"):
-            return self.reply([])
-        return self.reply({"message": "API running."})
+        if self.path == "/core/api/states":
+            return self.reply([LIGHT])
+        if self.path == "/core/api/states/" + LIGHT["entity_id"]:
+            return self.reply(LIGHT)
+        if self.path in ("/core/api", "/core/api/"):
+            return self.reply({"message": "API running."})
+        return self.reply({"error": "Not found"}, 404)
     def do_POST(self):
-        self.rfile.read(int(self.headers.get("Content-Length", 0)))
-        self.reply([])
+        raw = self.rfile.read(int(self.headers.get("Content-Length", 0)))
+        if self.headers.get("Authorization") != "Bearer " + TOKEN:
+            return self.reply({"error": "Unauthorized"}, 401)
+        if self.path.startswith("/core/api/services/"):
+            CALLS.append({"path": self.path, "body": json.loads(raw) if raw else {}})
+            return self.reply([])
+        self.reply({"error": "Not found"}, 404)
     def send_frame(self, value, opcode=1):
         body = json.dumps(value).encode() if opcode == 1 else value
         header = bytes([128 | opcode])
@@ -56,6 +90,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Upgrade", "websocket"); self.send_header("Connection", "Upgrade")
         self.send_header("Sec-WebSocket-Accept", accept); self.end_headers()
         self.send_frame({"type": "auth_required", "ha_version": "2026.9.0"})
+        authenticated = False
         try:
             while True:
                 first, second = read_exact(self.rfile, 2)
@@ -72,11 +107,34 @@ class Handler(BaseHTTPRequestHandler):
                 if opcode != 1: continue
                 msg = json.loads(body)
                 if msg["type"] == "auth":
+                    if msg.get("access_token") != TOKEN:
+                        self.send_frame({"type": "auth_invalid", "message": "Invalid access token"})
+                        return
+                    authenticated = True
                     self.send_frame({"type": "auth_ok", "ha_version": "2026.9.0"}); continue
-                result = [{"id": ADMIN, "name": "Test administrator", "is_active": ACTIVE,
-                           "is_owner": False, "group_ids": ["system-admin"]}] if msg["type"] == "config/auth/list" else []
+                if not authenticated:
+                    self.send_frame({"type": "auth_invalid", "message": "Authentication required"})
+                    return
+                if msg["type"] == "ping":
+                    self.send_frame({"type": "pong", "id": msg.get("id")}); continue
+                if msg["type"] == "call_service":
+                    CALLS.append({"path": "/core/api/services/" + msg["domain"] + "/" + msg["service"],
+                                  "body": msg.get("service_data", {}), "target": msg.get("target"),
+                                  "transport": "websocket"})
+                    self.send_frame({"id": msg["id"], "type": "result", "success": True,
+                                     "result": {"context": {"id": uuid.uuid4().hex}, "response": None}})
+                    continue
+                result = {
+                    "config/auth/list": [{"id": ADMIN, "name": "Test administrator", "is_active": ACTIVE,
+                                          "is_owner": False, "group_ids": ["system-admin"]}],
+                    "config/area_registry/list": [{"area_id": "fixture-area", "name": "Fixture room"}],
+                    "config/entity_registry/list": [ENTITY],
+                    "config/device_registry/list": [DEVICE],
+                    "get_states": [LIGHT],
+                }.get(msg["type"], [])
                 self.send_frame({"id": msg["id"], "type": "result", "success": True, "result": result})
         except (EOFError, ConnectionError):
             pass
 
-ThreadingHTTPServer(("0.0.0.0", 80), Handler).serve_forever()
+if __name__ == "__main__":
+    ThreadingHTTPServer(("0.0.0.0", 80), Handler).serve_forever()
