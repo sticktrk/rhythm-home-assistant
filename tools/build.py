@@ -56,9 +56,12 @@ def command(args):
     arch = args.platform or ("linux/arm64" if platform.machine() in ("arm64", "aarch64") else "linux/amd64")
     if any(p not in ("linux/arm64", "linux/amd64") for p in arch.split(",")):
         raise ValueError("Only amd64 and arm64 are supported")
-    result = ["docker", "buildx", "build", "--platform", arch, "--tag", args.tag,
-              "--build-arg", "BUILD_VERSION=" + lock["version"]]
-    for key, value in {"io.rhythm.packaging.revision": revision(), "io.rhythm.build.inputs": build_inputs_hash(),
+    addon_revision, inputs_hash = revision(), build_inputs_hash()
+    result = ["docker", "buildx", "build", "--platform", arch, "--tag", args.tag]
+    for key, value in {"BUILD_VERSION": lock["version"], "RHYTHM_SOURCE_SHA": lock["revision"],
+                       "RHYTHM_PACKAGING_REVISION": addon_revision, "RHYTHM_BUILD_INPUTS_SHA256": inputs_hash}.items():
+        result += ["--build-arg", key + "=" + value]
+    for key, value in {"io.rhythm.packaging.revision": addon_revision, "io.rhythm.build.inputs": inputs_hash,
                        "io.hass.version": lock["version"], "io.hass.type": "app"}.items():
         result += ["--label", key + "=" + value]
     if args.output:

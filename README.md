@@ -37,7 +37,7 @@ With Docker Buildx, Python 3.11+ and Skopeo installed, build and export each arc
 
 `export` runs the real-image smoke suite against the immutable local image ID and saves that same image into OCI storage, preserving its configuration and health check. Docker's containerd store identifies images by manifest digest; classic Docker identifies them by configuration digest. The receipt records which identity was tested and verifies it against the exported bytes. `assemble` verifies both exports and creates a multi-architecture archive without rebuilding. Retain `candidate.oci.tar`, `candidate.oci.json` and both adjacent smoke logs together. The receipt records artifact, manifest and configuration digests, source and packaging revisions, build-input hash, and whether each smoke run was native or emulated. A failed smoke or changed image cannot produce a successful export. Local ARM machines can build/test AMD64 through Docker emulation; this is recorded as emulated and does not replace required native qualification.
 
-The separate authorized publisher consumes that exact archive and receipt, rejects an existing version tag, and preserves its digests. Production still requires HAOS qualification and native architecture evidence. A development pilot is a distinct prerelease, not a production release. Deployment artifacts are built locally. Automatic PR and master CI runs the Python contract and unit checks; native cloud image validation runs only when explicitly selected through the manual workflow's `build_images` option, which defaults to false. Public CI does not publish images and no cloud build is needed to create the local candidate.
+The separate authorized publisher consumes that exact archive and receipt, refuses to replace an existing version with different bytes, and preserves its digests. Production still requires HAOS qualification and native architecture evidence. A development pilot is a distinct prerelease, not a production release. Deployment artifacts are built locally. Automatic PR and master CI runs the Python contract and unit checks; native cloud image validation runs only when explicitly selected through the manual workflow's `build_images` option, which defaults to false. Public CI does not publish images and no cloud build is needed to create the local candidate.
 
 After publication, verify public access and prepare the install metadata locally:
 
@@ -51,6 +51,8 @@ Keep `rhythm/config.yaml` and `release.json` on the last published version while
 A direct multi-architecture build is also available for development, but does not create a smoke-tested release receipt:
 
     python3 tools/build.py --platform linux/amd64,linux/arm64 --output candidate.oci.tar
+
+Builder and runtime base images, including the Dockerfile frontend, are pinned by multi-platform digest. Dart and cloudflared downloads use reviewed per-architecture checksums. Dependabot opens weekly Docker and GitHub Actions updates for review; each accepted image-input change needs a new candidate version and fresh qualification. Debian packages are resolved during the local build, so the retained tested OCI archive is the release artifact; rebuilding the same inputs is not an exact-byte recovery mechanism. Installed HA systems only pull that artifact and do not maintain build toolchains.
 
 Product SHA updates change both Dockerfile arguments and the source lock together. `python3 tools/build.py --identity` prints the canonical candidate identity without building.
 

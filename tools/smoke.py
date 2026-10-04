@@ -86,6 +86,18 @@ print(json.dumps({'status':response.status,'headers':dict(response.headers),'bod
             raise AssertionError("Image did not become ready")
         session = wait_ready()
         assert session["deployment"] == "home_assistant_addon"
+        labels = json.loads(docker("image", "inspect", args.image))[0]["Config"]["Labels"]
+        expected_build = {
+            "image_version": labels["io.hass.version"],
+            "product_revision": labels["io.rhythm.product.revision"],
+            "packaging_revision": labels["io.rhythm.packaging.revision"],
+            "build_inputs_sha256": labels["io.rhythm.build.inputs"],
+        }
+        build = session["status"]["build"]
+        assert build["schema_version"] == 1 and build["product_version"]
+        assert {key: build[key] for key in expected_build} == expected_build
+        admin_health = json.loads(docker("exec", addon, "curl", "-fsS", "http://127.0.0.1:8787/health"))
+        assert admin_health["build"] == build
         assert session["status"]["connection"]["configured_count"] == 1
         assert not session["status"]["light_breaker_enabled"]
         assert TOKEN not in json.dumps(session)
@@ -123,6 +135,8 @@ print(json.dumps({'status':response.status,'headers':dict(response.headers),'bod
             for path, expected in (("/health", 200), ("/api/state", 401), ("/api/events", 401)):
                 response = request(path, host=host)
                 assert response["status"] == expected, ("Mobile listener", host, path, response)
+                if path == "/health":
+                    assert response["body"]["build"] == build
         assert mapped_state()[0] == 401
         assert request("/api/auth/claim", {}, host=mobile_host)["status"] in (401, 403)
         assert request("/api/addon/enrollment", {}, host=mobile_host)["status"] in (401, 403, 404)

@@ -15,6 +15,9 @@ class BuildTests(unittest.TestCase):
         self.assertIn("io.rhythm.packaging.revision=" + identity["addon_revision"], cmd)
         self.assertIn("io.rhythm.build.inputs=" + identity["build_inputs_sha256"], cmd)
         self.assertIn("BUILD_VERSION=" + identity["version"], cmd)
+        self.assertIn("RHYTHM_SOURCE_SHA=" + identity["source_revision"], cmd)
+        self.assertIn("RHYTHM_PACKAGING_REVISION=" + identity["addon_revision"], cmd)
+        self.assertIn("RHYTHM_BUILD_INPUTS_SHA256=" + identity["build_inputs_sha256"], cmd)
     def test_multiarch_requires_archive(self):
         args = self.args(); args.platform = "linux/amd64,linux/arm64"
         with self.assertRaises(ValueError): command(args)

@@ -19,6 +19,18 @@ def validate():
                 "privileged", "devices", "map", "usb", "uart", "gpio", "apparmor"} & scalars.keys()
     assert re.search(r"^ports:\n((?:  .*\n)+)", text, re.M)[1] == "  54448/tcp: 54448\n"
     dockerfile = (ROOT / "rhythm/Dockerfile").read_text()
+    stages = set()
+    for image, stage in re.findall(r"^FROM (\S+)(?: AS (\S+))?$", dockerfile, re.M):
+        if image not in stages and image != "platform-${TARGETARCH}":
+            assert re.fullmatch(r"[^@]+@sha256:[0-9a-f]{64}", image), ("Unpinned build image", image)
+        if stage:
+            stages.add(stage)
+    assert re.search(r"^# syntax=docker/dockerfile:[^@]+@sha256:[0-9a-f]{64}$", dockerfile, re.M)
+    assert "ARG DART_VERSION=" + lock["dart"] in dockerfile
+    assert set(lock["dart_sha256"]) == {"amd64", "arm64"}
+    for digest in lock["dart_sha256"].values():
+        assert re.fullmatch(r"[0-9a-f]{64}", digest) and digest in dockerfile
+    assert "$url.sha256sum" not in dockerfile, "Dart archives must use reviewed independent checksums"
     assert "COPY --from=tunnel-build /cloudflared /usr/local/bin/cloudflared" in dockerfile
     assert "sha256sum -c -" in dockerfile
     assert "cloudflared/releases/download/" + lock["cloudflared"]["version"] + "/" in dockerfile

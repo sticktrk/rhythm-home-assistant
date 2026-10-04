@@ -1,30 +1,40 @@
-# syntax=docker/dockerfile:1
+# syntax=docker/dockerfile:1@sha256:4edf897a3ffa55b89f906fc8cc78afdb3f1834cc9c7083565e611a8a7d5fe99e
 # Product revision is also recorded in source.lock.json and validated by CI.
 ARG TARGETARCH
-FROM debian:bookworm-slim AS source
-ARG RHYTHM_SOURCE_SHA=79c7e16d1c7cac8f31d4c9771e86ff1a78cfa431
+FROM debian:bookworm-slim@sha256:3783cc01769c7b2b1b83a5c5ad96c815348e28ed7da68e2e3687004faa906251 AS source
+ARG RHYTHM_SOURCE_SHA=3902e4cc9d2585b08459289e6e058548a49fa9b7
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && rm -rf /var/lib/apt/lists/*
 RUN mkdir /src && curl -fsSL --retry 3 "https://codeload.github.com/sticktrk/rhythm-os/tar.gz/${RHYTHM_SOURCE_SHA}" | tar xz --strip-components=1 -C /src
 
-FROM rust:1.92.0-bookworm AS rust-build
+FROM rust:1.92.0-bookworm@sha256:e90e846de4124376164ddfbaab4b0774c7bdeef5e738866295e5a90a34a307a2 AS rust-build
+ARG BUILD_VERSION
+ARG RHYTHM_SOURCE_SHA
+ARG RHYTHM_PACKAGING_REVISION
+ARG RHYTHM_BUILD_INPUTS_SHA256
 COPY --from=source /src /src
 WORKDIR /src
-RUN cargo build --locked --release -p rhythm-addon
+RUN RHYTHM_IMAGE_VERSION="$BUILD_VERSION" \
+    RHYTHM_PRODUCT_REVISION="$RHYTHM_SOURCE_SHA" \
+    RHYTHM_PACKAGING_REVISION="$RHYTHM_PACKAGING_REVISION" \
+    RHYTHM_BUILD_INPUTS_SHA256="$RHYTHM_BUILD_INPUTS_SHA256" \
+    cargo build --locked --release -p rhythm-addon
 
-FROM node:24-bookworm-slim AS ui-build
+FROM node:24-bookworm-slim@sha256:0e0ff40c39bc087845bfb27465a0df4ea419520094bc35842ff83dd8cbe6f9b6 AS ui-build
 COPY --from=source /src/admin-ui /src/admin-ui
 WORKDIR /src/admin-ui
 RUN npm ci && npm run build:homeassistant
 
-FROM debian:bookworm-slim AS api-build
+FROM debian:bookworm-slim@sha256:3783cc01769c7b2b1b83a5c5ad96c815348e28ed7da68e2e3687004faa906251 AS api-build
 ARG TARGETARCH
 ARG DART_VERSION=3.11.5
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates unzip && rm -rf /var/lib/apt/lists/*
-RUN case "$TARGETARCH" in amd64) dart_arch=x64 ;; arm64) dart_arch=arm64 ;; *) exit 1 ;; esac; \
+RUN case "$TARGETARCH" in \
+      amd64) dart_arch=x64; checksum=57f3ab5ac24883060b1ff12bcdac472ed76563ec7364e88f8a6d41e4f0db075f ;; \
+      arm64) dart_arch=arm64; checksum=50e9aba58f8717943854778a73074e63a80c42054355d35e2732a0cc0824a2fb ;; \
+      *) exit 1 ;; esac; \
     url="https://storage.googleapis.com/dart-archive/channels/stable/release/${DART_VERSION}/sdk/dartsdk-linux-${dart_arch}-release.zip"; \
     curl -fsSL --retry 3 "$url" -o /tmp/dart.zip && \
-    curl -fsSL "$url.sha256sum" | cut -d ' ' -f 1 > /tmp/dart.sha256 && \
-    echo "$(cat /tmp/dart.sha256)  /tmp/dart.zip" | sha256sum -c - && \
+    echo "$checksum  /tmp/dart.zip" | sha256sum -c - && \
     unzip -q /tmp/dart.zip -d /opt && rm /tmp/dart.zip
 ENV PATH="/opt/dart-sdk/bin:${PATH}"
 COPY --from=source /src/admin-api /src/admin-api
@@ -32,7 +42,7 @@ COPY --from=source /src/sdk /src/sdk
 WORKDIR /src/admin-api
 RUN dart pub get --enforce-lockfile && dart compile exe bin/local_server.dart -o /rhythm-admin-api
 
-FROM debian:bookworm-slim AS tunnel-build
+FROM debian:bookworm-slim@sha256:3783cc01769c7b2b1b83a5c5ad96c815348e28ed7da68e2e3687004faa906251 AS tunnel-build
 ARG TARGETARCH
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && rm -rf /var/lib/apt/lists/*
 # Immutable upstream release and independent per-architecture SHA-256 receipts.
@@ -45,7 +55,7 @@ RUN case "$TARGETARCH" in \
     curl -fsSL "https://raw.githubusercontent.com/cloudflare/cloudflared/2026.9.3/LICENSE" -o /cloudflared.LICENSE
 
 FROM ghcr.io/home-assistant/base-debian:bookworm@sha256:60cd882d5200157082e568a0b775cca0d9cb5704452ada3cf6f206c4dd6d83c5 AS runtime
-ARG RHYTHM_SOURCE_SHA=79c7e16d1c7cac8f31d4c9771e86ff1a78cfa431
+ARG RHYTHM_SOURCE_SHA=3902e4cc9d2585b08459289e6e058548a49fa9b7
 ARG BUILD_VERSION=development
 LABEL org.opencontainers.image.title="Rhythm for Home Assistant" \
       org.opencontainers.image.source="https://github.com/sticktrk/rhythm-home-assistant" \

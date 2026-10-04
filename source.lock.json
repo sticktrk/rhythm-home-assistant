@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "version": "0.2.1-dev.2026100402",
+  "version": "0.2.1-dev.2026100403",
   "repository": "https://github.com/sticktrk/rhythm-os",
-  "revision": "79c7e16d1c7cac8f31d4c9771e86ff1a78cfa431",
+  "revision": "3902e4cc9d2585b08459289e6e058548a49fa9b7",
   "dart": "3.11.5",
   "rust": "1.92.0",
   "node": "24",
@@ -12,5 +12,9 @@
       "amd64": "77e26d8d900e0b8469f416239d14b5f296525fdf79fee6f511ef55609e3fbac2",
       "arm64": "aaeb2d7d0da3614634c7e03ab13487a1522c2e79165ed2929cfe23d5e95b326d"
     }
+  },
+  "dart_sha256": {
+    "amd64": "57f3ab5ac24883060b1ff12bcdac472ed76563ec7364e88f8a6d41e4f0db075f",
+    "arm64": "50e9aba58f8717943854778a73074e63a80c42054355d35e2732a0cc0824a2fb"
   }
 }
