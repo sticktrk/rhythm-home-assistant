@@ -32,6 +32,6 @@ jobs:
     timeout-minutes: 45
     steps:
       - uses: actions/checkout@v5
-      - uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v4
       - run: python3 tools/build.py --platform ${{ matrix.platform }} --tag rhythm-ha:review
       - run: python3 tools/smoke.py --image rhythm-ha:review
