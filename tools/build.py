@@ -23,7 +23,7 @@ def require_clean():
 
 def build_inputs_hash():
     digest = hashlib.sha256()
-    paths = [ROOT / "source.lock.json", ROOT / "rhythm/Dockerfile"]
+    paths = [ROOT / "source.lock.json", ROOT / "rhythm/Dockerfile", ROOT / "tools/build.py"]
     paths += [path for path in (ROOT / "rhythm/rootfs").rglob("*") if path.is_file()]
     for path in sorted(paths):
         data = path.read_bytes()

@@ -7,6 +7,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
+from build import build_inputs_hash
 from candidate import (IMAGE, assemble, digest, export_image, file_hash,
                        inspect_layout, json_bytes)
 from promote import promote, validate_catalog, verify_registry, version_key
@@ -194,6 +195,27 @@ class CandidateTests(unittest.TestCase):
             validate_catalog(config, release, candidate)
         with self.assertRaisesRegex(ValueError, "disagree"):
             validate_catalog(config.replace(release["version"], "0.3.0"), release, candidate)
+
+    def test_changed_build_command_requires_new_version_but_catalog_metadata_does_not(self):
+        _, release = self.candidate()
+        root = self.root / "checkout"
+        (root / "rhythm/rootfs").mkdir(parents=True)
+        (root / "tools").mkdir()
+        (root / "source.lock.json").write_text("locked inputs")
+        (root / "rhythm/Dockerfile").write_text("FROM runtime")
+        (root / "tools/build.py").write_text("original build arguments")
+        with patch("build.ROOT", root):
+            original = build_inputs_hash()
+            (root / "README.md").write_text("documentation changed")
+            (root / "rhythm/config.yaml").write_text("image: published-image")
+            self.assertEqual(build_inputs_hash(), original)
+            (root / "tools/build.py").write_text("changed effective build arguments")
+            changed = build_inputs_hash()
+        self.assertNotEqual(original, changed)
+        release["build_inputs_sha256"] = original
+        config = 'version: "' + release["version"] + '"\nimage: ' + IMAGE + '\n'
+        with self.assertRaisesRegex(ValueError, "newer immutable"):
+            validate_catalog(config, release, {"version": release["version"], "build_inputs_sha256": changed})
 
     def test_version_order_and_development_fallback(self):
         self.assertLess(version_key("0.2.0-dev.9"), version_key("0.2.0-dev.10"))
