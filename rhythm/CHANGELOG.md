@@ -1,4 +1,4 @@
-# 0.2.0-dev.2026100401 (development candidate)
+# 0.2.1-dev.2026100401 (development candidate)
 
 Prepare locally built, smoke-tested multi-architecture image artifacts with immutable source, packaging and image receipts. Verify both images are publicly accessible before advertising their version to Home Assistant. Keep the last published catalog version available while preparing the next candidate. This development version remains a source build until its image is published and verified.
 
