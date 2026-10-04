@@ -158,7 +158,14 @@ print(json.dumps({'status':response.status,'headers':dict(response.headers),'bod
         room = next(node for node in nodes if node["name"] == "Fixture room" and node["kind"] == "room")
         action = proxy("PUT", "api/nodes/action", {"node_id": room["id"], "action": "off"})["body"]
         assert action["statusCode"] == 200, action
-        calls = request("/fixture/calls", host="supervisor:80")["body"]
+        # Node actions queue dispatch; observe its result without replaying the
+        # mutation or assuming the worker already ran when HTTP returns.
+        dispatch_deadline = time.monotonic() + 10
+        while True:
+            calls = request("/fixture/calls", host="supervisor:80")["body"]
+            if any(call["path"] == "/core/api/services/light/turn_off" for call in calls): break
+            if time.monotonic() >= dispatch_deadline: break
+            time.sleep(0.1)
         assert any(call["path"] == "/core/api/services/light/turn_off" for call in calls), calls
         assert all(call.get("transport") == "websocket" for call in calls), calls
         assert all(call["body"].get("entity_id") in (light["entity_id"], [light["entity_id"]]) for call in calls), calls

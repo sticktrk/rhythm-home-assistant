@@ -58,18 +58,16 @@ class SupervisorProxyTests(unittest.TestCase):
             })
             self.assertEqual(status, 404)
 
-    def test_websocket_requires_supervisor_credential_before_upgrade(self):
-        self.assertEqual(self.request("/core/websocket", {"Upgrade": "websocket"})[0], 401)
-
-    def websocket_auth(self, token, commands=()):
+    def websocket_auth(self, token, commands=(), http_token=None):
         with socket.create_connection(self.server.server_address, timeout=2) as connection:
             stream = connection.makefile("rb")
+            authorization = "" if http_token is None else "Authorization: Bearer " + http_token + "\r\n"
             connection.sendall((
                 "GET /core/websocket HTTP/1.1\r\nHost: supervisor\r\n"
                 "Upgrade: websocket\r\nConnection: Upgrade\r\n"
                 "Sec-WebSocket-Version: 13\r\n"
                 "Sec-WebSocket-Key: " + base64.b64encode(b"synthetic-key-16!").decode() + "\r\n"
-                "Authorization: Bearer " + fixture.TOKEN + "\r\n\r\n"
+                + authorization + "\r\n"
             ).encode())
             self.assertIn(b"101", stream.readline())
             while stream.readline() != b"\r\n":
@@ -98,9 +96,17 @@ class SupervisorProxyTests(unittest.TestCase):
             stream.close()
             return replies if commands else response
 
-    def test_websocket_authenticates_the_message_token(self):
+    def test_websocket_accepts_headerless_upgrade_with_valid_frame_token(self):
         self.assertEqual(self.websocket_auth(fixture.TOKEN)["type"], "auth_ok")
-        self.assertEqual(self.websocket_auth("wrong-token")["type"], "auth_invalid")
+
+    def test_http_bearer_does_not_authorize_an_invalid_websocket_frame(self):
+        self.assertEqual(self.websocket_auth("wrong-token", http_token=fixture.TOKEN)["type"], "auth_invalid")
+
+    def test_http_bearer_does_not_replace_websocket_frame_token(self):
+        self.assertEqual(self.websocket_auth(None, http_token=fixture.TOKEN)["type"], "auth_invalid")
+
+    def test_websocket_authentication_uses_frame_not_http_header(self):
+        self.assertEqual(self.websocket_auth(fixture.TOKEN, http_token="wrong-token")["type"], "auth_ok")
 
     def test_service_calls_return_distinct_command_contexts_and_record_targets(self):
         service_data = {"entity_id": fixture.LIGHT["entity_id"], "brightness": 120}

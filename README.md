@@ -21,7 +21,7 @@ Requirements: Python 3, Docker with Buildx and access to public source/toolchain
     python3 tools/build.py --platform linux/arm64 --tag rhythm-ha:review
     python3 tools/smoke.py --image rhythm-ha:review
 
-The harness tests the real image through a synthetic Supervisor. The fixture enforces the authenticated `/core/api/` REST and `/core/websocket` upgrade paths, so incorrect proxy URLs cannot pass as a working installation. It needs the 172.30.32.0/24 Docker subnet to be unused and fails on collision. Do not run it on the production HA host. Test containers and data are removed afterward.
+The harness tests the real image through a synthetic Supervisor. The fixture enforces `/core/api/` REST bearer authentication and `/core/websocket` authentication in the first WebSocket frame, so incorrect proxy URLs cannot pass as a working installation. It needs the 172.30.32.0/24 Docker subnet to be unused and fails on collision. Do not run it on the production HA host. Test containers and data are removed afterward.
 
 Build both architectures into a local artifact:
 

@@ -51,14 +51,16 @@ class Handler(BaseHTTPRequestHandler):
             ACTIVE = False; return self.reply({})
         if self.path == "/fixture/calls":
             return self.reply(CALLS)
-        if self.headers.get("Authorization") != "Bearer " + TOKEN:
-            return self.reply({"error": "Unauthorized"}, 401)
         if self.headers.get("Upgrade", "").lower() == "websocket":
             # Supervisor's WebSocket proxy is NOT under /core/api. Accepting
             # any upgrade path conceals an installation-breaking URL error.
+            # It authenticates the first WS frame, not the HTTP upgrade header:
+            # home-assistant/supervisor supervisor/api/proxy.py websocket().
             if self.path == "/core/websocket":
                 return self.websocket()
             return self.reply({"error": "Not found"}, 404)
+        if self.headers.get("Authorization") != "Bearer " + TOKEN:
+            return self.reply({"error": "Unauthorized"}, 401)
         if self.path == "/core/api/config":
             return self.reply({"latitude": 51.5, "longitude": -0.12, "time_zone": "Europe/London"})
         if self.path == "/core/api/states":
@@ -88,6 +90,7 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Upgrade", "websocket"); self.send_header("Connection", "Upgrade")
         self.send_header("Sec-WebSocket-Accept", accept); self.end_headers()
         self.send_frame({"type": "auth_required", "ha_version": "2026.9.0"})
+        authenticated = False
         try:
             while True:
                 first, second = read_exact(self.rfile, 2)
@@ -107,7 +110,11 @@ class Handler(BaseHTTPRequestHandler):
                     if msg.get("access_token") != TOKEN:
                         self.send_frame({"type": "auth_invalid", "message": "Invalid access token"})
                         return
+                    authenticated = True
                     self.send_frame({"type": "auth_ok", "ha_version": "2026.9.0"}); continue
+                if not authenticated:
+                    self.send_frame({"type": "auth_invalid", "message": "Authentication required"})
+                    return
                 if msg["type"] == "ping":
                     self.send_frame({"type": "pong", "id": msg.get("id")}); continue
                 if msg["type"] == "call_service":
