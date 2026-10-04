@@ -1,3 +1,7 @@
+# 0.2.0-dev.2026100401 (development candidate)
+
+Prepare locally built, smoke-tested multi-architecture image artifacts with immutable source, packaging and image receipts. Verify both images are publicly accessible before advertising their version to Home Assistant. Keep the last published catalog version available while preparing the next candidate. This development version remains a source build until its image is published and verified.
+
 # 0.2.0 (experimental; pending qualification)
 
 Add authenticated direct mobile access on mapped port 54448, single-use enrollment through Ingress, durable phone credentials, and the existing outbound Rhythm tunnel using pinned cloudflared. Keep the internal administrator listener separate. Require reviewed stable HA light identities and current inventory for selection. Extend real-image smoke checks for listener isolation, enrollment, restart continuity, revocation and selection conflicts.

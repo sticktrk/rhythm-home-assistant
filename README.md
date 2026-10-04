@@ -4,7 +4,7 @@ Rhythm's lighting engine with Home Assistant-owned devices and two separate inte
 
 This repository owns install metadata, packaging and public build checks. Shared Rust, pure Dart and React source remain in [rhythm-os](https://github.com/sticktrk/rhythm-os), pinned by [source.lock.json](source.lock.json). Release publishing is operated separately; public CI cannot publish images.
 
-**Experimental implementation, pending HAOS qualification.** Initial targets are amd64 and aarch64. After the packaging PR lands, installation builds from pinned source. Qualified prebuilt images will be advertised through a separate release.
+**Experimental implementation, pending HAOS qualification.** Initial targets are amd64 and aarch64. Production installs download a prebuilt multi-architecture image: no Rust, Dart or web compilation runs on the Home Assistant host. The current development manifest deliberately has no `image` key until a candidate has been published and verified; installing this development branch therefore still builds source on the host.
 
 ## Use
 
@@ -23,11 +23,36 @@ Requirements: Python 3, Docker with Buildx and access to public source/toolchain
 
 The harness tests the real image through a synthetic Supervisor. The fixture enforces `/core/api/` REST bearer authentication and `/core/websocket` authentication in the first WebSocket frame, so incorrect proxy URLs cannot pass as a working installation. It needs the 172.30.32.0/24 Docker subnet to be unused and fails on collision. Do not run it on the production HA host. Test containers and data are removed afterward.
 
-Build both architectures into a local artifact:
+## Build once, qualify, then promote
+
+Build release candidates on the development machine. `source.lock.json` contains the candidate version and product revision. The build records those values, the packaging commit and a hash of image inputs in image labels. Commit changes before building. A pilot uses a unique `X.Y.Z-dev.NUMBER` version; production uses `X.Y.Z`. Never overwrite either version or use `latest` for installation.
+
+With Docker Buildx, Python 3.11+ and Skopeo installed, build and export each architecture in sequence:
+
+    python3 tools/build.py --platform linux/arm64 --tag rhythm-ha:candidate-arm64
+    python3 tools/candidate.py export --image rhythm-ha:candidate-arm64 --output .build/arm64
+    python3 tools/build.py --platform linux/amd64 --tag rhythm-ha:candidate-amd64
+    python3 tools/candidate.py export --image rhythm-ha:candidate-amd64 --output .build/amd64
+    python3 tools/candidate.py assemble .build/arm64 .build/amd64 --output .build/candidate.oci.tar
+
+`export` runs the real-image smoke suite against the immutable local image ID and copies that same image into OCI storage. `assemble` verifies both exports and creates a multi-architecture archive without rebuilding. Retain `candidate.oci.tar`, `candidate.oci.json` and both adjacent smoke logs together. The receipt records artifact, manifest and configuration digests, source and packaging revisions, build-input hash, and whether each smoke run was native or emulated. A failed smoke or changed image cannot produce a successful export. Local ARM machines can build/test AMD64 through Docker emulation; this is recorded as emulated and does not replace required native qualification.
+
+The separate authorized publisher consumes that exact archive and receipt, rejects an existing version tag, and preserves its digests. Production still requires HAOS qualification and native architecture evidence. A development pilot is a distinct prerelease, not a production release. Public CI does not publish images and no cloud build is needed to create the local candidate.
+
+After publication, verify public access and prepare the install metadata locally:
+
+    python3 tools/promote.py --candidate .build/candidate.oci.json --check-only
+    python3 tools/promote.py --candidate .build/candidate.oci.json
+
+The promotion helper uses anonymous registry access, downloads both platform images by digest, verifies their provenance and content against the tested receipt, and checks the version tag again. A missing, private or substituted image leaves the catalog unchanged. Only after verification does it add `image: ghcr.io/sticktrk/rhythm-home-assistant`, set the matching catalog version and save `release.json`. Review and commit those metadata changes separately. Supervisor then pulls `ghcr.io/sticktrk/rhythm-home-assistant:<version>` and chooses its native architecture.
+
+After the first promotion, keep `rhythm/config.yaml` and `release.json` on the last published version while preparing newer source pins in `source.lock.json`. Reserve a newer candidate version whenever image inputs change. The validator rejects reusing a published version for changed inputs. Promote the catalog only after the newer image exists and passes anonymous verification; customers continue installing the previous working image meanwhile. Development source builds remain available through `tools/build.py` regardless of the catalog's image setting.
+
+A direct multi-architecture build is also available for development, but does not create a smoke-tested release receipt:
 
     python3 tools/build.py --platform linux/amd64,linux/arm64 --output candidate.oci.tar
 
-Product SHA updates change both Dockerfile arguments and the source lock together. Record native architecture checks and qualify actual HAOS behavior before release.
+Product SHA updates change both Dockerfile arguments and the source lock together. `python3 tools/build.py --identity` prints the canonical candidate identity without building.
 
 ## Container boundary
 
