@@ -4,7 +4,7 @@ Rhythm's lighting engine with Home Assistant-owned devices and two separate inte
 
 This repository owns install metadata, packaging and public build checks. Shared Rust, pure Dart and React source remain in [rhythm-os](https://github.com/sticktrk/rhythm-os), pinned by [source.lock.json](source.lock.json). Release publishing is operated separately; public CI cannot publish images.
 
-**Experimental pilot, pending HAOS qualification.** The catalog now installs the published prebuilt pilot `0.2.1-dev.2026100402` for amd64 and aarch64. Home Assistant downloads the image for its architecture; no Rust, Dart or web compilation runs on the HA host, including when upgrading from the earlier source-built `0.2.0` pilot. Both published images passed anonymous download and exact provenance verification; [release.json](release.json) records the tested artifact. This remains a qualification pilot, not a production release.
+**Experimental pilot, pending HAOS qualification.** The catalog now installs the published prebuilt pilot `0.2.1-dev.2026100403` for amd64 and aarch64. Home Assistant downloads the image for its architecture; no Rust, Dart or web compilation runs on the HA host, including when upgrading from the earlier source-built `0.2.0` pilot. Both published images passed anonymous download and exact provenance verification; [release.json](release.json) records the tested artifact. This remains a qualification pilot, not a production release.
 
 ## Use
 

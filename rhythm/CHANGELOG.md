@@ -1,3 +1,10 @@
+# 0.2.1-dev.2026100403 (prebuilt qualification pilot)
+
+- Preserve per-light manual overrides with current and legacy HA integration identifiers, including a single selected light in an area.
+- Expose immutable image provenance in health and administration status, verified against image labels by container smoke tests.
+- Bound connector logs and restart backoff; prevent inherited output pipes from blocking connector recovery.
+- Pin build image digests and Dart archive checksums. Both architectures are built and tested locally before publication.
+
 # 0.2.1-dev.2026100402 (prebuilt qualification pilot)
 
 Support authenticated mobile access over IPv4 and IPv6 on Home Assistant's dual-stack container network. Extend real-image smoke coverage to IPv6 health, enrollment, bearer access, restart continuity and revocation while keeping the administrator listener private.
