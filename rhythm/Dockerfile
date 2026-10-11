@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1@sha256:4edf897a3ffa55b89f906fc8cc78afdb3f1834cc9c7083565e611a8a7d5fe99e
 # Product revision is also recorded in source.lock.json and validated by CI.
 ARG TARGETARCH
-FROM debian:bookworm-slim@sha256:3783cc01769c7b2b1b83a5c5ad96c815348e28ed7da68e2e3687004faa906251 AS source
+FROM debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587 AS source
 ARG RHYTHM_SOURCE_SHA=e3bf577c2c2c98d14275a29eb7f9442574f4fefd
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && rm -rf /var/lib/apt/lists/*
 RUN mkdir /src && curl -fsSL --retry 3 "https://codeload.github.com/sticktrk/rhythm-os/tar.gz/${RHYTHM_SOURCE_SHA}" | tar xz --strip-components=1 -C /src
@@ -24,7 +24,7 @@ COPY --from=source /src/admin-ui /src/admin-ui
 WORKDIR /src/admin-ui
 RUN npm ci && npm run build:homeassistant
 
-FROM debian:bookworm-slim@sha256:3783cc01769c7b2b1b83a5c5ad96c815348e28ed7da68e2e3687004faa906251 AS api-build
+FROM debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587 AS api-build
 ARG TARGETARCH
 ARG DART_VERSION=3.11.5
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates unzip && rm -rf /var/lib/apt/lists/*
@@ -42,7 +42,7 @@ COPY --from=source /src/sdk /src/sdk
 WORKDIR /src/admin-api
 RUN dart pub get --enforce-lockfile && dart compile exe bin/local_server.dart -o /rhythm-admin-api
 
-FROM debian:bookworm-slim@sha256:3783cc01769c7b2b1b83a5c5ad96c815348e28ed7da68e2e3687004faa906251 AS tunnel-build
+FROM debian:bookworm-slim@sha256:7c7b2c966bc9ee8cedfeef67e0e279108992c77681fa595db4a9d65c06ccc587 AS tunnel-build
 ARG TARGETARCH
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && rm -rf /var/lib/apt/lists/*
 # Immutable upstream release and independent per-architecture SHA-256 receipts.
