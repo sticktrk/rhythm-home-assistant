@@ -6,7 +6,7 @@ ARG RHYTHM_SOURCE_SHA=e3bf577c2c2c98d14275a29eb7f9442574f4fefd
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && rm -rf /var/lib/apt/lists/*
 RUN mkdir /src && curl -fsSL --retry 3 "https://codeload.github.com/sticktrk/rhythm-os/tar.gz/${RHYTHM_SOURCE_SHA}" | tar xz --strip-components=1 -C /src
 
-FROM rust:1.92.0-bookworm@sha256:e90e846de4124376164ddfbaab4b0774c7bdeef5e738866295e5a90a34a307a2 AS rust-build
+FROM rust:1.99.1-bookworm@sha256:e12566d5abc17a0da741628782cdb504b68b8961f5bfcf677936bf3e8b32de29 AS rust-build
 ARG BUILD_VERSION
 ARG RHYTHM_SOURCE_SHA
 ARG RHYTHM_PACKAGING_REVISION
