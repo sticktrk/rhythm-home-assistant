@@ -47,12 +47,12 @@ ARG TARGETARCH
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && rm -rf /var/lib/apt/lists/*
 # Immutable upstream release and independent per-architecture SHA-256 receipts.
 RUN case "$TARGETARCH" in \
-      amd64) checksum=77e26d8d900e0b8469f416239d14b5f296525fdf79fee6f511ef55609e3fbac2 ;; \
-      arm64) checksum=aaeb2d7d0da3614634c7e03ab13487a1522c2e79165ed2929cfe23d5e95b326d ;; \
+      amd64) checksum=ae5e8add7884b0531d66bbca4570d1de491ff6da51e4ebe7eb160cdf241d9e42 ;; \
+      arm64) checksum=2b7203b4fb0ba28a0c1e12f8855ce2c25f76d266a8d5edafac5540b6812acff6 ;; \
       *) exit 1 ;; esac; \
-    curl -fsSL --retry 3 "https://github.com/cloudflare/cloudflared/releases/download/2026.9.3/cloudflared-linux-${TARGETARCH}" -o /cloudflared && \
+    curl -fsSL --retry 3 "https://github.com/cloudflare/cloudflared/releases/download/2026.10.4/cloudflared-linux-${TARGETARCH}" -o /cloudflared && \
     echo "$checksum  /cloudflared" | sha256sum -c - && chmod 755 /cloudflared && \
-    curl -fsSL "https://raw.githubusercontent.com/cloudflare/cloudflared/2026.9.3/LICENSE" -o /cloudflared.LICENSE
+    curl -fsSL "https://raw.githubusercontent.com/cloudflare/cloudflared/2026.10.4/LICENSE" -o /cloudflared.LICENSE
 
 FROM ghcr.io/home-assistant/base-debian:bookworm@sha256:60cd882d5200157082e568a0b775cca0d9cb5704452ada3cf6f206c4dd6d83c5 AS runtime
 ARG RHYTHM_SOURCE_SHA=e3bf577c2c2c98d14275a29eb7f9442574f4fefd
