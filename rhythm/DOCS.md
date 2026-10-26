@@ -66,7 +66,7 @@ directly to the internet; configure existing Rhythm Remote Access in the app for
 TLS tunnel access. Changing the mapped host port requires updating the phone's
 LAN endpoint, while the tunnel origin remains localhost:54448.
 
-Container cloudflared is pinned to release 2026.9.3 with architecture-specific
+Container cloudflared is pinned to release 2026.10.4 with architecture-specific
 SHA-256 verification. It needs outbound connectivity, without Bluetooth, USB,
 host D-Bus, host networking or Docker socket access. Full installation recovery
 uses HA cold backups. A replacement-host restore requires stopping/revoking the
