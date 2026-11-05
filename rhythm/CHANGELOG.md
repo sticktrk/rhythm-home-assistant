@@ -1,3 +1,10 @@
+# 0.2.1-dev.2026110501 (prebuilt qualification pilot)
+
+- Support Home Assistant-owned Matter management and pairing recovery from the Rhythm mobile app.
+- Transfer lighting settings from a Light Box backup with reviewed room and light mappings.
+- Preserve resolved room schedule modes through realtime updates and correct daylight-saving clock transitions.
+- Publish the exact locally tested ARM64 and AMD64 images. ARM64 smoke checks ran natively and AMD64 checks ran under emulation; real HAOS qualification remains pending.
+
 # 0.2.1-dev.2026100404 (prebuilt qualification pilot)
 
 - Show observed light power, brightness and color temperature separately from requested curve values in the admin interface.
