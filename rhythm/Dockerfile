@@ -54,7 +54,7 @@ RUN case "$TARGETARCH" in \
     echo "$checksum  /cloudflared" | sha256sum -c - && chmod 755 /cloudflared && \
     curl -fsSL "https://raw.githubusercontent.com/cloudflare/cloudflared/2026.9.3/LICENSE" -o /cloudflared.LICENSE
 
-FROM ghcr.io/home-assistant/base-debian:bookworm@sha256:60cd882d5200157082e568a0b775cca0d9cb5704452ada3cf6f206c4dd6d83c5 AS runtime
+FROM ghcr.io/home-assistant/base-debian:bookworm@sha256:ebb912a11616e3eda2d31204803587276e70bbb4e7f02a6c92dba5f43256b48d AS runtime
 ARG RHYTHM_SOURCE_SHA=765d67a8b4c5479ea9295a038b8d5954f11b2e3d
 ARG BUILD_VERSION=development
 LABEL org.opencontainers.image.title="Rhythm for Home Assistant" \
