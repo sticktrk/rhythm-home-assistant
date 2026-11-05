@@ -4,7 +4,9 @@ This experimental add-on targets Supervisor installations, normally HAOS. Home A
 
 ## Installation and first run
 
-For the current pre-merge qualification pilot, add `https://github.com/sticktrk/rhythm-home-assistant#codex/mobile-ha-platform` in the HA app/add-on store. Keep an existing pilot installation attached to that same repository. The catalog advertises `0.2.1-dev.2026100402` and downloads its published prebuilt image for your host architecture. Both a fresh installation and an update from `0.2.0` use the image without compiling software on Home Assistant. This pilot is still undergoing HAOS qualification.
+For a new installation, add `https://github.com/sticktrk/rhythm-home-assistant` in the HA app/add-on store. The catalog advertises `0.2.1-dev.2026110501` and downloads its published prebuilt image for your host architecture. Both a fresh installation and an update from `0.2.0` use the image without compiling software on Home Assistant. This pilot is still undergoing HAOS qualification.
+
+Keep existing pilot installations attached to their configured repository. Changing a branch-specific repository URL can change the Supervisor installation identity; it is not an in-place update.
 
 Build future candidates locally and verify anonymous registry access before advancing the catalog. The repository README describes the exact-artifact workflow; development source builds remain available through `tools/build.py`.
 
@@ -34,6 +36,8 @@ Supervisor owns start, stop, updates and backups. Persistent state lives in /dat
 Take a Home Assistant cold backup before upgrading. Rollback restores the matching old image and data snapshot together. An image downgrade alone is not a safe schema rollback. The add-on has no runtime updater.
 
 **System → Export profiles** transfers only the portable profile bundle. Restore pauses adaptation and does not import credentials, integrations or managed-light selection. Full configuration uses HA backups of this installation.
+
+Use **Backup & Restore** in the Rhythm mobile app to transfer lighting settings from a Light Box backup. Review the preview and match rooms and lights before applying it. Set up devices and integrations in Home Assistant; use HA backups for the whole installation.
 
 **Reset Rhythm** removes settings and selection and restarts the service. Home Assistant devices, integrations, options and other add-ons remain intact.
 

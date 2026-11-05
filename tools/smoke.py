@@ -30,7 +30,8 @@ def main():
     volume = network + "-data"
     created = []
     image = "rhythm-supervisor-fixture:local"
-    docker("build", "-q", "-t", image, str(ROOT / "tools/mock-supervisor"))
+    # Container-driver builders keep output in their cache unless loaded.
+    docker("build", "--load", "-q", "-t", image, str(ROOT / "tools/mock-supervisor"))
     # Fail on a subnet collision; never reuse or modify an existing HA network.
     docker("network", "create", "--subnet", "172.30.32.0/24", "--ipv6",
            "--subnet", ipv6_prefix + "::/64", network)
