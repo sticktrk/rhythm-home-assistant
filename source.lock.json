@@ -1,8 +1,8 @@
 {
   "schema_version": 1,
-  "version": "0.2.1-dev.2026110501",
+  "version": "0.2.1-dev.2026110801",
   "repository": "https://github.com/sticktrk/rhythm-os",
-  "revision": "765d67a8b4c5479ea9295a038b8d5954f11b2e3d",
+  "revision": "ecb244f752ed93114dc9ecf57b2ec441b125ed94",
   "dart": "3.11.5",
   "rust": "1.92.0",
   "node": "24",
