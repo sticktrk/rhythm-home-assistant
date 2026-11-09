@@ -1,3 +1,9 @@
+# 0.2.1-dev.2026110802 (prebuilt qualification pilot)
+
+- Allow authenticated Identify requests through the Home Assistant app's API policy so they reach the native Identify controller.
+- Preserve existing authentication and device ownership checks, and reject invalid Identify paths and methods.
+- Publish the exact locally tested ARM64 and AMD64 images. ARM64 smoke checks ran natively and AMD64 checks ran under emulation; full HAOS qualification remains pending.
+
 # 0.2.1-dev.2026110801 (prebuilt qualification pilot)
 
 - Use Home Assistant's native Identify buttons for Matter lights, preserving light power and brightness.
