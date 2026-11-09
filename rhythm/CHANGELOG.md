@@ -1,3 +1,10 @@
+# 0.2.1-dev.2026110801 (prebuilt qualification pilot)
+
+- Use Home Assistant's native Identify buttons for Matter lights, preserving light power and brightness.
+- Retain native flash for lights that advertise it, and reject unsupported Identify actions without changing light output.
+- Recheck reviewed light ownership and current identification controls before dispatch.
+- Publish the exact locally tested ARM64 and AMD64 images. ARM64 smoke checks ran natively and AMD64 checks ran under emulation; full HAOS qualification remains pending.
+
 # 0.2.1-dev.2026110501 (prebuilt qualification pilot)
 
 - Support Home Assistant-owned Matter management and pairing recovery from the Rhythm mobile app.
