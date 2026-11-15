@@ -1,3 +1,8 @@
+# 0.2.1-dev.2026111501 (prebuilt qualification pilot)
+
+- Keep the Home Assistant command connection responsive during quiet periods so the next light action, including a motion shutoff or warning dim, can reach Home Assistant.
+- Replace a stale connection before sending a light command. Commands with an uncertain result are sent at most once.
+
 # 0.2.1-dev.2026110802 (prebuilt qualification pilot)
 
 - Allow authenticated Identify requests through the Home Assistant app's API policy so they reach the native Identify controller.
