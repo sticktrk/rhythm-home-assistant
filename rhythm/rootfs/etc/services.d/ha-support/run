@@ -1,0 +1,16 @@
+#!/usr/bin/with-contenv bash
+set -euo pipefail
+unset SUPERVISOR_TOKEN HASSIO_TOKEN
+support=/run/rhythm/ha-support
+if [[ ! -s "$support/expires" ]]; then
+    exec sleep infinity
+fi
+remaining="$(( $(cat "$support/expires") - $(date -u +%s) ))"
+if (( remaining <= 0 )); then
+    echo 'Home Assistant support approval has expired.'
+    exec sleep infinity
+fi
+# Kill the dedicated connector at the original deadline, including open WS
+# streams. S6 retries failures while the same approval is still active.
+exec timeout --foreground --kill-after=2s "$remaining" cloudflared tunnel \
+    --no-autoupdate --disable-path-normalization=false --loglevel warn --config "$support/tunnel.yml" run

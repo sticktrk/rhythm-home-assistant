@@ -51,12 +51,19 @@ class Handler(BaseHTTPRequestHandler):
             ACTIVE = False; return self.reply({})
         if self.path == "/fixture/calls":
             return self.reply(CALLS)
+        if self.path == "/fixture/support-origin":
+            return self.reply({name: self.headers.get(name) for name in (
+                "Host", "X-Forwarded-For", "X-Forwarded-Proto", "CF-Access-Jwt-Assertion",
+                "X-Remote-User-Id", "Authorization",
+            )})
         if self.headers.get("Upgrade", "").lower() == "websocket":
             # Supervisor's WebSocket proxy is NOT under /core/api. Accepting
             # any upgrade path conceals an installation-breaking URL error.
             # It authenticates the first WS frame, not the HTTP upgrade header:
             # home-assistant/supervisor supervisor/api/proxy.py websocket().
-            if self.path == "/core/websocket":
+            if self.path == "/core/websocket" or (
+                self.path == "/api/websocket" and self.headers.get("Host") == "support.example.test"
+            ):
                 return self.websocket()
             return self.reply({"error": "Not found"}, 404)
         if self.headers.get("Authorization") != "Bearer " + TOKEN:

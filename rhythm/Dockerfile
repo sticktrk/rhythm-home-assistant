@@ -47,12 +47,12 @@ ARG TARGETARCH
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl && rm -rf /var/lib/apt/lists/*
 # Immutable upstream release and independent per-architecture SHA-256 receipts.
 RUN case "$TARGETARCH" in \
-      amd64) checksum=77e26d8d900e0b8469f416239d14b5f296525fdf79fee6f511ef55609e3fbac2 ;; \
-      arm64) checksum=aaeb2d7d0da3614634c7e03ab13487a1522c2e79165ed2929cfe23d5e95b326d ;; \
+      amd64) checksum=97bb3b02d23a5980fc9c15a1a270e692da1923f103f920d5b16d4931d5ab55e7 ;; \
+      arm64) checksum=b155cec3e48e489cfb8e5c602769fb8c771083018d8881d68b4d18a791567c5a ;; \
       *) exit 1 ;; esac; \
-    curl -fsSL --retry 3 "https://github.com/cloudflare/cloudflared/releases/download/2026.9.3/cloudflared-linux-${TARGETARCH}" -o /cloudflared && \
+    curl -fsSL --retry 3 "https://github.com/cloudflare/cloudflared/releases/download/2026.11.1/cloudflared-linux-${TARGETARCH}" -o /cloudflared && \
     echo "$checksum  /cloudflared" | sha256sum -c - && chmod 755 /cloudflared && \
-    curl -fsSL "https://raw.githubusercontent.com/cloudflare/cloudflared/2026.9.3/LICENSE" -o /cloudflared.LICENSE
+    curl -fsSL "https://raw.githubusercontent.com/cloudflare/cloudflared/2026.11.1/LICENSE" -o /cloudflared.LICENSE
 
 FROM ghcr.io/home-assistant/base-debian:bookworm@sha256:60cd882d5200157082e568a0b775cca0d9cb5704452ada3cf6f206c4dd6d83c5 AS runtime
 ARG RHYTHM_SOURCE_SHA=7b1466afe235ffab1ae8e975376e708c9cdbee1d
@@ -72,7 +72,7 @@ COPY --from=rust-build /src/target/release/rhythm-addon /usr/local/bin/rhythm-ad
 COPY --from=api-build /rhythm-admin-api /usr/local/bin/rhythm-admin-api
 COPY --from=ui-build /src/admin-ui/dist-homeassistant/ /opt/rhythm/ui/
 COPY rootfs /
-RUN chmod 755 /etc/cont-init.d/10-rhythm /etc/services.d/*/run /etc/services.d/*/finish && nginx -t
+RUN chmod 755 /etc/cont-init.d/* /etc/services.d/*/run /etc/services.d/*/finish && nginx -t
 ENV RHYTHM_STATE_PATH=/data/rhythm RHYTHM_ADDON_API_TOKEN_FILE=/run/rhythm/api-token
 HEALTHCHECK --interval=30s --timeout=5s --start-period=90s --retries=3 CMD curl -fsS http://127.0.0.1:8787/health >/dev/null || exit 1
 

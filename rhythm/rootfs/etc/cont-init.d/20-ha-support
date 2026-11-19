@@ -1,0 +1,88 @@
+#!/usr/bin/with-contenv bash
+set -euo pipefail
+umask 077
+
+# Supervisor owns consent. A malformed or absent option must leave the other
+# add-on services available, with no HA support listener or connector.
+support=/run/rhythm/ha-support
+# A Supervisor restart can reuse the container writable layer.
+rm -f "$support"/{expires,credentials.json,tunnel.yml,origin.conf}
+if ! jq -e '.ha_support_enabled == true' /data/options.json >/dev/null 2>&1; then
+    exit 0
+fi
+identity="$(jq -er '.server_instance_id | strings | select(length > 0)' /data/rhythm/server_metadata.json 2>/dev/null)" || {
+    echo 'Home Assistant support is off. Establish the installation identity first.'
+    exit 0
+}
+
+if ! grant="$(jq -ce --arg identity "$identity" '
+    .ha_support_grant | fromjson |
+    select(.server_instance_id == $identity) |
+    select(.hostname | test("^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)+$")) |
+    select(.hostname | length <= 253) |
+    select(.expires_at | test("^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z$")) |
+    select(.access_team | test("^[a-z0-9][a-z0-9-]{0,62}$")) |
+    select(.access_audience | test("^[0-9a-f]{64}$")) |
+    select(.core_port | type == "number" and . == floor and . >= 1 and . <= 65535) |
+    select(.credentials.AccountTag | test("^[0-9a-f]{32}$")) |
+    select(.credentials.TunnelID | test("^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$")) |
+    select(.credentials.TunnelSecret | test("^[A-Za-z0-9+/]{43}=$"))
+' /data/options.json 2>/dev/null)"; then
+    echo 'Home Assistant support is off. The approval is invalid or belongs to another installation.'
+    exit 0
+fi
+expires_at="$(jq -r '.expires_at' <<< "$grant")"
+now="$(date -u +%s)"
+if ! expires="$(date -u -d "$expires_at" +%s 2>/dev/null)" || (( expires <= now || expires - now > 86400 )); then
+    echo 'Home Assistant support is off. Approval must expire within the next 24 hours.'
+    exit 0
+fi
+hostname="$(jq -r '.hostname' <<< "$grant")"
+core_port="$(jq -r '.core_port' <<< "$grant")"
+# Use a runtime resolver because Nginx starts even when Core is restarting.
+resolver="$(awk '$1 == "nameserver" && $2 ~ /^[0-9.]+$/ { print $2; exit }' /etc/resolv.conf)"
+if [[ -z "$resolver" ]]; then
+    echo 'Home Assistant support is off. The add-on has no IPv4 DNS resolver.'
+    exit 0
+fi
+mkdir -p "$support"
+jq -c '.credentials | {AccountTag, TunnelID, TunnelSecret}' <<< "$grant" > "$support/credentials.json"
+jq -c '{tunnel: .credentials.TunnelID,
+    "credentials-file": "/run/rhythm/ha-support/credentials.json",
+    ingress: [{hostname, service: "http://127.0.0.1:8098", originRequest: {
+        access: {required: true, teamName: .access_team, audTag: [.access_audience]}
+    }}, {service: "http_status:404"}]}' <<< "$grant" > "$support/tunnel.yml"
+cat > "$support/origin.conf" <<NGINX
+server {
+    listen 127.0.0.1:8098;
+    server_name $hostname;
+    if (\$host != "$hostname") { return 404; }
+    set_real_ip_from 127.0.0.1;
+    real_ip_header CF-Connecting-IP;
+    if (\$remote_addr = 127.0.0.1) { return 403; }
+    resolver $resolver valid=10s ipv6=off;
+    set \$ha_core http://homeassistant:$core_port;
+    client_max_body_size 0;
+    location / {
+        proxy_pass \$ha_core;
+        proxy_http_version 1.1;
+        proxy_set_header Host \$host;
+        proxy_set_header Upgrade \$http_upgrade;
+        proxy_set_header Connection \$ha_support_connection;
+        proxy_set_header X-Forwarded-For \$remote_addr;
+        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-Host \$host;
+        proxy_set_header Forwarded "";
+        proxy_set_header CF-Access-Jwt-Assertion "";
+        proxy_set_header X-Remote-User-Id "";
+        proxy_set_header X-Remote-User-Name "";
+        proxy_set_header X-Remote-User-Display-Name "";
+        proxy_read_timeout 300s;
+        proxy_next_upstream off;
+        proxy_cache off;
+        proxy_hide_header Cache-Control;
+        add_header Cache-Control no-store always;
+    }
+}
+NGINX
+printf '%s\n' "$expires" > "$support/expires"

@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """Exercise the real image behind a synthetic Supervisor network (no HAOS claim)."""
 import argparse
+import base64
+import datetime
 import json
 import subprocess
 import time
@@ -16,6 +18,75 @@ TOKEN = "synthetic-supervisor-token-for-tests"
 
 def docker(*args, capture=True):
     return subprocess.check_output(["docker", *args], text=True).strip() if capture else subprocess.run(["docker", *args], check=True)
+
+def check_ha_support(addon, local, client, request, identity):
+    origin = "127.0.0.1:8098"
+    host = "support.example.test"
+    directory = "/run/rhythm/ha-support"
+    proof = {"Host": host, "CF-Connecting-IP": "203.0.113.1"}
+    approval = {
+        "server_instance_id": identity,
+        "hostname": host,
+        "expires_at": (datetime.datetime.now(datetime.UTC) + datetime.timedelta(minutes=5)).strftime("%Y-%m-%dT%H:%M:%SZ"),
+        "access_team": "fixture-team",
+        "access_audience": "a" * 64,
+        "core_port": 80,
+        "credentials": {"AccountTag": "a" * 32, "TunnelID": str(uuid.uuid4()),
+                        "TunnelSecret": base64.b64encode(bytes(32)).decode()},
+    }
+
+    def configure(enabled, grant):
+        # Exercise the real init script while the disabled S6 service sleeps.
+        # This gives the fixture an origin without registering a fake connector.
+        docker("exec", addon, "sh", "-c", "printf '%s' \"$1\" > /data/options.json && "
+               'bash /etc/cont-init.d/20-ha-support && nginx -s reload', "configure",
+               json.dumps({"ha_support_enabled": enabled, "ha_support_grant": json.dumps(grant)}))
+
+    route = "/fixture/support-origin"
+    assert request(route, headers=proof, from_container=local, host=origin)["status"] == 0
+    configure(True, {**approval, "server_instance_id": "unrelated-installation"})
+    assert request(route, headers=proof, from_container=local, host=origin)["status"] == 0
+    configure(True, {**approval, "expires_at": "2001-01-01T00:00:00Z"})
+    assert request(route, headers=proof, from_container=local, host=origin)["status"] == 0
+    configure(True, approval)
+    config = json.loads(docker("exec", addon, "cat", directory + "/tunnel.yml"))
+    assert config["ingress"] == [{"hostname": host, "service": "http://127.0.0.1:8098",
+                                  "originRequest": {"access": {"required": True, "teamName": "fixture-team",
+                                                                "audTag": ["a" * 64]}}}, {"service": "http_status:404"}]
+    docker("exec", addon, "cloudflared", "tunnel", "--config", directory + "/tunnel.yml", "ingress", "validate")
+    assert request(route, headers=proof, from_container=client, host="172.30.32.4:8098")["status"] == 0
+    assert request(route, headers={"Host": host}, from_container=local, host=origin)["status"] == 403
+    assert request(route, headers={**proof, "Host": "other.example.test"}, from_container=local, host=origin)["status"] == 404
+    assert request(route, headers={**proof, "X-Forwarded-For": "192.0.2.20",
+                                   "CF-Access-Jwt-Assertion": "synthetic-proof",
+                                   "Authorization": "Bearer synthetic-ha-credential"},
+                   from_container=local, host=origin)["body"] == {
+        "Host": host, "X-Forwarded-For": "203.0.113.1", "X-Forwarded-Proto": "https",
+        "CF-Access-Jwt-Assertion": None, "X-Remote-User-Id": None,
+        "Authorization": "Bearer synthetic-ha-credential",
+    }
+    upgrade = r"""
+import socket
+with socket.create_connection(('127.0.0.1', 8098), timeout=5) as connection:
+    connection.sendall(b'GET /api/websocket HTTP/1.1\r\nHost: support.example.test\r\n'
+                       b'CF-Connecting-IP: 203.0.113.1\r\nUpgrade: websocket\r\nConnection: Upgrade\r\n'
+                       b'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n')
+    with connection.makefile('rb') as stream:
+        assert stream.readline().startswith(b'HTTP/1.1 101 ')
+        while stream.readline() not in (b'\r\n', b''):
+            pass
+        header = stream.read(2)
+        assert b'auth_required' in stream.read(header[1] & 127)
+"""
+    docker("exec", local, "python3", "-c", upgrade)
+    configure(False, approval)
+    deadline = time.monotonic() + 5
+    while request(route, headers=proof, from_container=local, host=origin)["status"] != 0:
+        assert time.monotonic() < deadline, "The disabled support origin is still reachable"
+        time.sleep(0.1)
+    docker("exec", addon, "test", "!", "-e", directory + "/credentials.json")
+    print("PASS: isolated HA support origin, bound approval, Access policy, WebSocket and disabled cleanup.")
+
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
@@ -38,7 +109,7 @@ def main():
     try:
         docker("volume", "create", volume)
         docker("run", "-d", "--name", supervisor, "--network", network, "--ip", "172.30.32.3",
-               "--network-alias", "supervisor", image); created.append(supervisor)
+               "--network-alias", "supervisor", "--network-alias", "homeassistant", image); created.append(supervisor)
         docker("run", "-d", "--name", client, "--network", network, "--ip", "172.30.32.2",
                *(["-p", "127.0.0.1:18099:8080"] if args.inspect else []),
                image, "python", "/gateway.py"); created.append(client)
@@ -198,6 +269,13 @@ print(json.dumps({'status':response.status,'headers':dict(response.headers),'bod
         request("/revoke", host="supervisor:80")
         assert proxy("PUT", "api/light-breaker", {"enabled": False}, expected_status=403)["status"] == 403
         request("/activate", host="supervisor:80")
+        local = addon + "-loopback-fixture"
+        docker("run", "-d", "--name", local, "--network", "container:" + addon,
+               image, "python", "-c", "import time; time.sleep(180)")
+        created.append(local)
+        check_ha_support(addon, local, client, request, enrollment["server_instance_id"])
+        docker("rm", "-f", local)
+        created.remove(local)
         old_token = docker("exec", addon, "cat", "/run/rhythm/api-token")
         assert TOKEN not in docker("exec", addon, "cat", "/data/rhythm/hub_credentials.json")
         assert "credential_source" in docker("exec", addon, "cat", "/data/rhythm/hub_credentials.json")

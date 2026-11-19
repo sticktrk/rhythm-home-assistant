@@ -70,9 +70,48 @@ directly to the internet; configure existing Rhythm Remote Access in the app for
 TLS tunnel access. Changing the mapped host port requires updating the phone's
 LAN endpoint, while the tunnel origin remains localhost:54448.
 
-Container cloudflared is pinned to release 2026.9.3 with architecture-specific
+Container cloudflared is pinned to release 2026.11.1 with architecture-specific
 SHA-256 verification. It needs outbound connectivity, without Bluetooth, USB,
 host D-Bus, host networking or Docker socket access. Full installation recovery
 uses HA cold backups. A replacement-host restore requires stopping/revoking the
 previous connector and reconciling ownership before enabling it; duplicate
 installation prevention is a release qualification gate.
+
+## Temporary Home Assistant support access
+
+This experimental option lets a Home Assistant administrator open the full Home
+Assistant UI to named staff for up to 24 hours. It starts off. The support
+connector terminates inside the Rhythm add-on. The current mobile tunnel and
+Supervisor Ingress use their existing ports and credentials.
+
+Before enabling, create a separate locally managed Cloudflare tunnel for this
+installation. Put an exact-hostname Cloudflare Access application in place first,
+allowing only the named people who need access. Use a short Access session and
+require the staff identity provider's MFA. Route only that hostname to this
+connector. Give staff separate Home Assistant accounts with the roles they need.
+Sign-in to Cloudflare Access and sign-in to Home Assistant are both required.
+
+In **Settings → Apps → Rhythm → Configuration**, an administrator enables
+`ha_support_enabled` and enters the single-line JSON approval from the operator
+in the password field `ha_support_grant`. Save and restart the add-on. The grant
+contains `server_instance_id`, `hostname`, `access_team`, `access_audience`,
+`expires_at`, `core_port`, and the dedicated tunnel's `credentials` object. Set
+`expires_at` in UTC, for example `2026-12-01T20:00:00Z`, and choose the actual
+Home Assistant HTTP port. Treat the grant and any Supervisor backups that contain
+it as credentials. An approval for a different Rhythm installation or an
+expired approval leaves support off.
+
+For Home Assistant's HTTP server, enable **Trust X-Forwarded-For** and trust the
+add-on's exact address on the Supervisor network. The proxy passes the actual
+Cloudflare client address to Home Assistant. Use the
+[Home Assistant reverse proxy settings](https://www.home-assistant.io/integrations/http/#reverse-proxies).
+The pilot connects to HTTP on the internal Supervisor network. A Core HTTP
+server configured for internal HTTPS needs separate qualification.
+
+Confirm that an unapproved staff identity is rejected, then test both Home
+Assistant sign-in and device settings over the tunnel. End access early by
+turning the option off and restarting the add-on, then remove the dedicated
+Cloudflare route and revoke any temporary Home Assistant account. The connector
+stops automatically at expiry and drops open support connections. Before
+restoring a cold backup to a replacement host, revoke the old route and issue
+a fresh approval for the verified installation.

@@ -26,6 +26,9 @@ backup: cold
 timeout: 30
 options:
   log_level: info
+  ha_support_enabled: false
 schema:
   log_level: list(error|warn|info|debug)
+  ha_support_enabled: bool?
+  ha_support_grant: password?
 image: ghcr.io/sticktrk/rhythm-home-assistant
