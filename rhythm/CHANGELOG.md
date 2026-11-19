@@ -1,3 +1,10 @@
+# 0.2.1-dev.2026111901 (prebuilt qualification pilot)
+
+- Add Rhythm's assistant operations and an MCP endpoint on the app listener. An MCP client, such as Home Assistant's Model Context Protocol integration, can read lighting state, adjust rooms, run trials that can be undone, and propose saved changes.
+- Assistant access stays off until an owner creates a credential in the Rhythm app. A saved change requested by an assistant waits for the owner's approval in the app.
+- A trial is refused where its lights could not be restored. Undo reports whether the lights were restored, and a trial interrupted by a restart is restored afterwards.
+- Publish the exact locally tested ARM64 and AMD64 images. ARM64 smoke checks ran natively and AMD64 checks ran under emulation. Full HAOS qualification remains pending, and the assistant operations have not yet been exercised with a live Assist conversation.
+
 # 0.2.1-dev.2026111501 (prebuilt qualification pilot)
 
 - Keep the Home Assistant command connection responsive during quiet periods so the next light action, including a motion shutoff or warning dim, can reach Home Assistant.
