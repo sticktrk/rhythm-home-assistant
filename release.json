@@ -1,20 +1,20 @@
 {
   "schema_version": 1,
   "image": "ghcr.io/sticktrk/rhythm-home-assistant",
-  "source_revision": "6175285d22296522acc50bfd37dc8371a1856360",
-  "addon_revision": "164e9a3f56ea754058e61996f3fd2ec63f82404d",
-  "version": "0.2.1-dev.2026111901",
-  "build_inputs_sha256": "f233e1a23e9f0f3613e90fe1cf89f0f5d9b3d62ba44361a65ff09d6ace7cd053",
-  "artifact_sha256": "fd8ebffb5726ffa8a84b72b9a7ea6d4598ef32995e8b6e06d9a0c2a8ab769bc0",
-  "manifest_digest": "sha256:159b681cb05afd85b42faab76eda9229fe51975345649772a10661e5cdb6992e",
+  "source_revision": "26195dd314fbcaeb64c9df5ca262c745cb1727d6",
+  "addon_revision": "14f3aad20d0af472235e04a586839ee733841b20",
+  "version": "0.2.1-dev.2026112601",
+  "build_inputs_sha256": "bf46e4dfabeaafefb7bbfabbe6b11386bc5518b13f74f9a928982549973eae0e",
+  "artifact_sha256": "275f818890d2c6eea55e69f547592d522e8939fb45e790c00ae1eb03ca8c5550",
+  "manifest_digest": "sha256:90bd559df403d89a65c26955acf2fe15df7f39dcb2f12cfd86f91b991095e2ce",
   "platforms": {
     "linux/arm64": {
-      "manifest_digest": "sha256:981e487916f32e3d2d9ed4a4523f90d1ed56e1505f3313458bd8c46a7e8c4ac0",
-      "config_digest": "sha256:3072ffe73c9703483b3ea4889d499050a0dee957b11464da206a73024d2a053d"
+      "manifest_digest": "sha256:74e9da3c5e57f3492e128dc678fa30079ababb62be88a489a4b21c8f2b1311a1",
+      "config_digest": "sha256:874131e58df423dfa5e2d7a0b9425e15abd34194473a0bc6f5e44955d4e1927a"
     },
     "linux/amd64": {
-      "manifest_digest": "sha256:cba998f999126f1117c10285150fdf556dc9257ddc0d27ae786fb6589365d27b",
-      "config_digest": "sha256:a94901e57ec75d958534c0725062c50ec80eba5562d2a9fc0ff5ec896c9169c6"
+      "manifest_digest": "sha256:2434181498fe96001ada241e42aa6246a8513f70fa0ad51eb651978fd750948a",
+      "config_digest": "sha256:b7970fd6faa51ade598262f6dccabd7626fc129c02291595b2ff1bebb6209431"
     }
   },
   "checks": {
@@ -23,8 +23,8 @@
       "execution": "native",
       "evidence": "candidate.oci.arm64.smoke.log",
       "evidence_sha256": "028074af2506f4d100d560dad6bb7adad30866175b53999279a6550acc3b1495",
-      "tested_config_digest": "sha256:3072ffe73c9703483b3ea4889d499050a0dee957b11464da206a73024d2a053d",
-      "tested_image_id": "sha256:981e487916f32e3d2d9ed4a4523f90d1ed56e1505f3313458bd8c46a7e8c4ac0",
+      "tested_config_digest": "sha256:874131e58df423dfa5e2d7a0b9425e15abd34194473a0bc6f5e44955d4e1927a",
+      "tested_image_id": "sha256:74e9da3c5e57f3492e128dc678fa30079ababb62be88a489a4b21c8f2b1311a1",
       "tested_image_digest_kind": "manifest"
     },
     "linux/amd64": {
@@ -32,8 +32,8 @@
       "execution": "emulated",
       "evidence": "candidate.oci.amd64.smoke.log",
       "evidence_sha256": "207994be7dd56664c618dfbd916f92553377263a3cfd9b8a09398e88779cb984",
-      "tested_config_digest": "sha256:a94901e57ec75d958534c0725062c50ec80eba5562d2a9fc0ff5ec896c9169c6",
-      "tested_image_id": "sha256:cba998f999126f1117c10285150fdf556dc9257ddc0d27ae786fb6589365d27b",
+      "tested_config_digest": "sha256:b7970fd6faa51ade598262f6dccabd7626fc129c02291595b2ff1bebb6209431",
+      "tested_image_id": "sha256:2434181498fe96001ada241e42aa6246a8513f70fa0ad51eb651978fd750948a",
       "tested_image_digest_kind": "manifest"
     }
   }
