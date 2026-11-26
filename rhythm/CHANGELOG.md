@@ -1,3 +1,9 @@
+# 0.2.1-dev.2026112601 (prebuilt qualification pilot)
+
+- Connect Home Assistant's Model Context Protocol integration to Rhythm by entering the browser's confirmation code in the owner's Rhythm app. The owner can decline the request or revoke the connection later in Assistant access.
+- Review assistant proposals for saved lighting changes on the owner's phone.
+- Update the packaged Rhythm server, admin API and Ingress web interface to Rhythm OS `v0.6.669-beta`. The published ARM64 and AMD64 images passed the container smoke checks and anonymous registry verification.
+
 # 0.2.1-dev.2026111901 (prebuilt qualification pilot)
 
 - Add Rhythm's assistant operations and an MCP endpoint on the app listener. An MCP client, such as Home Assistant's Model Context Protocol integration, can read lighting state, adjust rooms, run trials that can be undone, and propose saved changes.
